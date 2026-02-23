@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K-Patent Pro Workspace (Cloudflare Hosted)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    textarea::-webkit-scrollbar { width: 8px; }
+    textarea::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+  </style>
+</head>
+<body class="min-h-screen bg-[#f8fafc] flex flex-col antialiased">
+  
+  <header class="bg-white h-16 flex items-center sticky top-0 border-b border-gray-200">
+    <div class="max-w-7xl mx-auto w-full px-6 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 bg-slate-900 rounded-lg flex items-center justify-center text-white"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg></div>
+        <div><span class="block font-bold text-gray-900">K-Patent Workspace</span><span class="text-[10px] text-green-600 font-bold uppercase">● Secure Cloud Hosted</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="bg-white border-b z-30 relative">
+    <div class="max-w-7xl mx-auto px-6 flex space-x-8">
+      <button id="tab-draft" onclick="switchTab('draft')" class="py-4 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600">의견서 생성기</button>
+      <button id="tab-ids" onclick="switchTab('ids')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500">IDS 판별기</button>
+    </div>
+  </div>
+
+  <main id="tool-draft" class="flex-grow flex flex-col max-w-5xl mx-auto w-full py-10 px-6 block">
+    <div class="bg-white rounded-3xl shadow-sm border flex-grow flex flex-col overflow-hidden min-h-[650px]">
+      <div id="step-1" class="p-10 flex-grow flex flex-col">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 flex-grow">
+          <div class="flex flex-col space-y-3"><label class="text-[11px] font-black text-gray-400">통지서 원문</label><textarea id="originalContext" oninput="checkDraftStep1()" class="flex-grow p-6 rounded-2xl border bg-gray-50/30 text-sm"></textarea></div>
+          <div class="flex flex-col space-y-3"><label class="text-[11px] font-black text-gray-400">대응 초안</label><textarea id="userDraftResponse" oninput="checkDraftStep1()" class="flex-grow p-6 rounded-2xl border bg-gray-50/30 text-sm"></textarea></div>
+        </div>
+        <div class="pt-6 border-t flex justify-end"><button id="btn-next-step1" disabled onclick="goToDraftStep(1)" class="px-10 py-4 bg-indigo-600 text-white rounded-2xl font-bold disabled:opacity-40">다음 ➔</button></div>
+      </div>
+      <div id="step-2" class="hidden p-10 flex-grow flex-col">
+        <textarea id="userTemplate" oninput="checkDraftStep2()" class="flex-grow p-10 rounded-3xl border text-sm font-mono bg-slate-50/50" placeholder="템플릿을 넣으세요"></textarea>
+        <div class="pt-6 border-t flex justify-between items-center">
+          <button onclick="goToDraftStep(0)" class="font-bold text-gray-400">이전</button>
+          <button id="btn-generate-draft" disabled onclick="generateDraft()" class="px-12 py-4 bg-indigo-600 text-white rounded-2xl font-bold disabled:opacity-40">최종 문서 생성</button>
+        </div>
+      </div>
+      <div id="step-3" class="hidden flex-col h-full bg-white">
+        <div class="p-6 border-b flex justify-between items-center"><h2 class="font-black text-xl">완료</h2>
+          <div><button onclick="copyDraft()" class="px-6 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-bold">복사</button><button onclick="goToDraftStep(0)" class="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold">다시 만들기</button></div>
+        </div>
+        <div class="flex-grow p-10 bg-[#f1f5f9]"><textarea id="draftFinalResult" class="w-full h-[500px] p-10 rounded-3xl font-mono text-sm leading-loose"></textarea></div>
+      </div>
+    </div>
+  </main>
+
+  <main id="tool-ids" class="max-w-7xl mx-auto px-4 py-8 w-full hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div class="lg:col-span-5 space-y-6">
+        <div class="bg-white p-6 rounded-xl border-l-4 border-l-red-400 shadow-sm"><h3 class="font-bold mb-2">1. 기존 제출 내역 (History)</h3>
+           <div class="border-2 border-dashed p-4 text-center cursor-pointer" onclick="document.getElementById('historyFiles').click()"><input type="file" id="historyFiles" multiple accept=".pdf" class="hidden" onchange="handleFileSelect(event, 'history')"><span class="text-sm">PDF 선택</span></div><ul id="historyFileList" class="mt-3 text-sm"></ul>
+        </div>
+        <div class="bg-white p-6 rounded-xl border-l-4 border-l-green-500 shadow-sm"><h3 class="font-bold mb-2">2. 신규 인용 문헌 (Target)</h3>
+           <div class="border-2 border-dashed p-4 text-center cursor-pointer mb-3" onclick="document.getElementById('targetFiles').click()"><input type="file" id="targetFiles" multiple accept=".pdf" class="hidden" onchange="handleFileSelect(event, 'target')"><span class="text-sm">PDF 선택</span></div><ul id="targetFileList" class="mb-3 text-sm"></ul>
+           <textarea id="manualRefsText" class="w-full h-24 p-3 border rounded-lg text-sm" placeholder="수동 텍스트 입력"></textarea>
+        </div>
+        <button id="btn-run-ids" onclick="runIDSAnalysis()" class="w-full py-4 rounded-xl bg-slate-900 text-white font-bold text-lg"><span id="ids-btn-text">필터링 분석 실행</span></button>
+      </div>
+      <div class="lg:col-span-7">
+         <div id="ids-empty-state" class="h-full min-h-[500px] flex flex-col items-center justify-center border-2 border-dashed bg-white text-slate-400 rounded-xl"><h4 class="text-lg">분석 대기 중</h4></div>
+         <div id="ids-results-container" class="hidden space-y-4">
+            <div class="flex justify-between items-center mb-2"><h3 class="text-xl font-bold">결과</h3><button onclick="resetIDS()" class="text-sm text-blue-600 font-bold">초기화</button></div>
+            <div class="bg-white rounded-xl border"><div class="p-4 bg-slate-50 border-b flex justify-between font-bold"><span>총: <span id="res-total">0</span>건</span><span>NEW: <span id="res-new" class="text-green-600">0</span>건</span></div><ul id="ids-result-list" class="divide-y max-h-[500px] overflow-y-auto p-2"></ul></div>
+         </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function fileToBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file); }); }
+    
+    let draftStep = 0;
+    function goToDraftStep(step) { draftStep = step; [0,1,2].forEach(i => { document.getElementById('step-'+(i+1)).classList.toggle('hidden', i !== draftStep); document.getElementById('step-'+(i+1)).classList.toggle('flex', i === draftStep); }); }
+    function checkDraftStep1() { document.getElementById('btn-next-step1').disabled = !(document.getElementById('originalContext').value.trim() && document.getElementById('userDraftResponse').value.trim()); }
+    function checkDraftStep2() { document.getElementById('btn-generate-draft').disabled = !document.getElementById('userTemplate').value.trim(); }
+
+    async function safeFetch(url, bodyData) {
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyData) });
+      const rawText = await response.text();
+      
+      if (!rawText) throw new Error(`서버 응답이 텅 비어있습니다 (상태코드: ${response.status}).\n아직 클라우드플레어가 백엔드 폴더(functions)를 인식하지 못한 상태입니다.`);
+      
+      let data;
+      try { data = JSON.parse(rawText); } 
+      catch (e) { throw new Error(`백엔드 경로가 잘못되었거나 HTML을 반환했습니다 (상태코드: ${response.status}).\n내용: ${rawText.substring(0, 50)}...`); }
+      
+      if (!response.ok) throw new Error(data.error?.message || data.error || "서버 통신 실패");
+      return data;
+    }
+
+    async function generateDraft() {
+      const btn = document.getElementById('btn-generate-draft'); btn.innerText = "작성 중..."; btn.disabled = true;
+      try {
+        const bodyData = { contents: [{ role: "user", parts: [{ text: `특허청 통지서 원문: ${document.getElementById('originalContext').value}\n초안: ${document.getElementById('userDraftResponse').value}\n템플릿: ${document.getElementById('userTemplate').value}` }] }] };
+        const data = await safeFetch('/api/gemini', bodyData);
+        document.getElementById('draftFinalResult').value = data.candidates[0].content.parts[0].text;
+        goToDraftStep(2);
+      } catch (error) { alert("🚨 통신 오류 발생:\n\n" + error.message); } 
+      finally { btn.innerText = "최종 문서 생성"; btn.disabled = false; }
+    }
+    function copyDraft() { navigator.clipboard.writeText(document.getElementById('draftFinalResult').value); alert('복사완료'); }
+
+    let idsState = { historyFiles: [], targetFiles: [] };
+    function handleFileSelect(e, type) { idsState[type + 'Files'] = [...idsState[type + 'Files'], ...Array.from(e.target.files)]; document.getElementById(type + 'FileList').innerHTML = idsState[type + 'Files'].map((f, i) => `<li class="flex justify-between p-2 bg-slate-50 border"><span>${f.name}</span><button onclick="idsState['${type}Files'].splice(${i}, 1); document.getElementById('${type}FileList').innerHTML=''" class="text-red-400">✕</button></li>`).join(''); }
+
+    async function runIDSAnalysis() {
+      const btn = document.getElementById('btn-run-ids'); const btnText = document.getElementById('ids-btn-text');
+      const textInput = document.getElementById('manualRefsText').value.trim();
+      if (!idsState.historyFiles.length) return alert("History PDF 필요"); if (!idsState.targetFiles.length && !textInput) return alert("Target 필요");
+
+      btn.disabled = true; btnText.innerText = "분석 중...";
+      try {
+        let parts = [{ text: `Target 문서(및 텍스트: ${textInput})에서 인용된 문헌 추출 후 History 문서들과 교차 검증. JSON 배열 반환: [{ "id": "문헌 번호", "type": "Patent/NPL", "status": "NEW/ALREADY_FILED", "source": "출처" }]` }];
+        for (let f of idsState.historyFiles) { parts.push({ inlineData: { mimeType: f.type, data: await fileToBase64(f) } }); parts.push({ text: `[History: ${f.name}]` }); }
+        for (let f of idsState.targetFiles) { parts.push({ inlineData: { mimeType: f.type, data: await fileToBase64(f) } }); parts.push({ text: `[Target: ${f.name}]` }); }
+
+        const data = await safeFetch('/api/gemini', { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } });
+        const resultsArray = JSON.parse(data.candidates[0].content.parts[0].text);
+        
+        document.getElementById('ids-empty-state').classList.add('hidden'); document.getElementById('ids-results-container').classList.remove('hidden');
+        document.getElementById('ids-result-list').innerHTML = resultsArray.map(res => `<li class="flex justify-between p-4 border-b"><div><b>${res.id}</b><div class="text-xs text-slate-400">${res.source}</div></div><span class="px-2 py-1 text-xs font-bold rounded ${res.status==='NEW'?'bg-green-100 text-green-700':'bg-slate-100 text-slate-500'}">${res.status}</span></li>`).join('');
+        document.getElementById('res-total').innerText = resultsArray.length; document.getElementById('res-new').innerText = resultsArray.filter(r=>r.status==='NEW').length;
+      } catch (error) { alert("🚨 통신 오류 발생:\n\n" + error.message); } 
+      finally { btn.disabled = false; btnText.innerText = "필터링 분석 실행"; }
+    }
+    function resetIDS() { idsState = { historyFiles: [], targetFiles: [] }; document.getElementById('manualRefsText').value = ''; document.getElementById('historyFileList').innerHTML=''; document.getElementById('targetFileList').innerHTML=''; document.getElementById('ids-empty-state').classList.remove('hidden'); document.getElementById('ids-results-container').classList.add('hidden'); }
+    function switchTab(tab) { document.getElementById('tool-draft').classList.toggle('hidden', tab !== 'draft'); document.getElementById('tool-draft').classList.toggle('flex', tab === 'draft'); document.getElementById('tool-ids').classList.toggle('hidden', tab !== 'ids'); document.getElementById('tab-draft').className = `py-4 font-bold border-b-2 ${tab === 'draft' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`; document.getElementById('tab-ids').className = `py-4 font-bold border-b-2 ${tab === 'ids' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'}`; }
+  </script>
+</body>
+</html>
