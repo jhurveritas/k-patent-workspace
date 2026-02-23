@@ -10,7 +10,7 @@ export async function onRequest(context) {
     }
 
     const requestBody = await context.request.json();
-    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro:generateContent?key=${apiKey}`;
     
     const googleResponse = await fetch(googleUrl, {
       method: 'POST',
@@ -34,5 +34,6 @@ export async function onRequest(context) {
   }
 
 }
+
 
 
