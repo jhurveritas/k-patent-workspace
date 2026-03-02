@@ -2,7 +2,6 @@ export async function onRequest(context) {
   try {
     const apiKey = context.env.GEMINI_API_KEY;
     if (!apiKey) {
-      // API 키가 없으면 에러 메시지를 JSON으로 반환
       return new Response(JSON.stringify({ error: "클라우드플레어에 API 키가 설정되지 않았습니다." }), { 
         status: 400, 
         headers: { 'Content-Type': 'application/json' } 
@@ -10,7 +9,9 @@ export async function onRequest(context) {
     }
 
     const requestBody = await context.request.json();
-    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${apiKey}`;
+    
+    // 💡 변경점 1: URL을 generateContent 대신 streamGenerateContent?alt=sse 로 변경
+    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
     
     const googleResponse = await fetch(googleUrl, {
       method: 'POST',
@@ -18,39 +19,21 @@ export async function onRequest(context) {
       body: JSON.stringify(requestBody)
     });
 
-    const data = await googleResponse.json();
-
-    return new Response(JSON.stringify(data), {
+    // 💡 변경점 2: JSON으로 묶고 기다리지 않고, 응답(스트림) 자체를 바로 클라이언트로 흘려보냄
+    return new Response(googleResponse.body, {
       status: googleResponse.status,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      headers: { 
+        'Content-Type': 'text/event-stream', // 스트리밍 전용 헤더
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*' 
+      }
     });
 
   } catch (err) {
-    // 백엔드가 터져도 텅 빈 응답 대신 에러 내용을 보냄
     return new Response(JSON.stringify({ error: "백엔드 자체 에러: " + err.message }), { 
       status: 500, 
       headers: { 'Content-Type': 'application/json' } 
     });
   }
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
