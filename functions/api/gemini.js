@@ -8,7 +8,7 @@ export async function onRequest(context) {
     const requestBody = await context.request.json();
     
     // 임시로 안정적인 2.5 Pro 모델을 사용합니다.
-    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
+    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
     
     const googleResponse = await fetch(googleUrl, {
       method: 'POST',
@@ -25,5 +25,6 @@ export async function onRequest(context) {
     return new Response(JSON.stringify({ error: "백엔드 에러: " + err.message }), { status: 500 });
   }
 }
+
 
 
