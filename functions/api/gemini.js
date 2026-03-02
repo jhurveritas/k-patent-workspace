@@ -11,7 +11,7 @@ export async function onRequest(context) {
     const requestBody = await context.request.json();
     
     // 💡 변경점 1: URL을 generateContent 대신 streamGenerateContent?alt=sse 로 변경
-    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
+    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
     
     const googleResponse = await fetch(googleUrl, {
       method: 'POST',
@@ -37,3 +37,4 @@ export async function onRequest(context) {
     });
   }
 }
+
