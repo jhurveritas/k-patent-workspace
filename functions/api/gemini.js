@@ -7,8 +7,8 @@ export async function onRequest(context) {
 
     const requestBody = await context.request.json();
     
-    // 💡 URL의 모델 이름은 현재 성공하신 모델(예: gemini-2.5-pro 등)로 맞춰주세요!
-    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
+    // 임시로 안정적인 2.5 Pro 모델을 사용합니다.
+    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=${apiKey}`;
     
     const googleResponse = await fetch(googleUrl, {
       method: 'POST',
@@ -16,16 +16,10 @@ export async function onRequest(context) {
       body: JSON.stringify(requestBody)
     });
 
-    return new Response(googleResponse.body, {
-      status: googleResponse.status,
-      headers: { 
-        'Content-Type': 'text/event-stream', 
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no', // 💡 핵심: 클라우드플레어에게 데이터 모으지 말고 즉시 배출하라고 명령!
-        'Access-Control-Allow-Origin': '*' 
-      }
-    });
+    // 💡 핵심: 구글 서버의 응답(스트리밍 설정)을 훼손하지 않고 그대로 복사해서 전달
+    const response = new Response(googleResponse.body, googleResponse);
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    return response;
 
   } catch (err) {
     return new Response(JSON.stringify({ error: "백엔드 에러: " + err.message }), { status: 500 });
