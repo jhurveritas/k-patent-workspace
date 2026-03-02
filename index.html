@@ -45,7 +45,7 @@
         </div>
       </div>
       <div id="step-3" class="hidden flex-col h-full bg-white">
-        <div class="p-6 border-b flex justify-between items-center"><h2 class="font-black text-xl">완료</h2>
+        <div class="p-6 border-b flex justify-between items-center"><h2 id="draft-status-title" class="font-black text-xl">완료</h2>
           <div><button onclick="copyDraft()" class="px-6 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-bold">복사</button><button onclick="goToDraftStep(0)" class="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold">다시 만들기</button></div>
         </div>
         <div class="flex-grow p-10 bg-[#f1f5f9]"><textarea id="draftFinalResult" class="w-full h-[500px] p-10 rounded-3xl font-mono text-sm leading-loose"></textarea></div>
@@ -124,11 +124,16 @@
     }
 
     async function generateDraft() {
-      const btn = document.getElementById('btn-generate-draft'); btn.innerText = "작성 중..."; btn.disabled = true;
+      const btn = document.getElementById('btn-generate-draft'); 
+      const statusTitle = document.getElementById('draft-status-title'); // 💡 제목 요소 가져오기
+      
+      btn.innerText = "작성 중..."; 
+      btn.disabled = true;
       const resultArea = document.getElementById('draftFinalResult');
       resultArea.value = ""; 
       
       goToDraftStep(2); 
+      statusTitle.innerText = "작성 중... ✍️"; // 💡 화면이 넘어가자마자 '작성 중'으로 변경!
 
       try {
         const bodyData = { contents: [{ role: "user", parts: [{ text: `특허청 통지서 원문: ${document.getElementById('originalContext').value}\n초안: ${document.getElementById('userDraftResponse').value}\n템플릿: ${document.getElementById('userTemplate').value}` }] }] };
@@ -137,8 +142,16 @@
            resultArea.value += textChunk;
            resultArea.scrollTop = resultArea.scrollHeight; 
         });
-      } catch (error) { alert("🚨 에러 발생:\n\n" + error.message); goToDraftStep(1); } 
-      finally { btn.innerText = "최종 문서 생성"; btn.disabled = false; }
+        
+        statusTitle.innerText = "완료 ✅"; // 💡 타자 치기가 무사히 끝나면 '완료'로 변경!
+        
+      } catch (error) { 
+        alert("🚨 에러 발생:\n\n" + error.message); 
+        goToDraftStep(1); 
+      } finally { 
+        btn.innerText = "최종 문서 생성"; 
+        btn.disabled = false; 
+      }
     }
     
     function copyDraft() { navigator.clipboard.writeText(document.getElementById('draftFinalResult').value); alert('복사완료'); }
@@ -173,5 +186,6 @@
 </body>
 
 </html>
+
 
 
