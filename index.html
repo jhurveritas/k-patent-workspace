@@ -83,48 +83,78 @@
     function checkDraftStep1() { document.getElementById('btn-next-step1').disabled = !(document.getElementById('originalContext').value.trim() && document.getElementById('userDraftResponse').value.trim()); }
     function checkDraftStep2() { document.getElementById('btn-generate-draft').disabled = !document.getElementById('userTemplate').value.trim(); }
 
-    async function safeFetch(url, bodyData) {
+    // 💡 핵심 1: 조각난 데이터를 실시간으로 수신하는 스트리밍 전용 함수
+    async function streamFetchGemini(url, bodyData, onChunk) {
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyData) });
-      const rawText = await response.text();
-      
-      if (!rawText) throw new Error(`서버 응답이 텅 비어있습니다 (상태코드: ${response.status}).\n아직 클라우드플레어가 백엔드 폴더(functions)를 인식하지 못한 상태입니다.`);
-      
-      let data;
-      try { data = JSON.parse(rawText); } 
-      catch (e) { throw new Error(`백엔드 경로가 잘못되었거나 HTML을 반환했습니다 (상태코드: ${response.status}).\n내용: ${rawText.substring(0, 50)}...`); }
-      
-      if (!response.ok) throw new Error(data.error?.message || data.error || "서버 통신 실패");
-      return data;
+      if (!response.ok) throw new Error("서버 통신 실패 (상태코드: " + response.status + ")");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+             const dataStr = line.substring(6).trim();
+             if (dataStr === '[DONE]') continue;
+             try {
+                const dataObj = JSON.parse(dataStr);
+                const textPart = dataObj.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                fullText += textPart;
+                if (onChunk) onChunk(textPart); // 화면에 한 글자씩 출력하라고 넘김
+             } catch(e) { console.error("스트리밍 파싱 무시:", e); }
+          }
+        }
+      }
+      return fullText;
     }
 
+    // 💡 핵심 2: 챗GPT처럼 실시간 타이핑 효과가 적용된 문서 생성기
     async function generateDraft() {
       const btn = document.getElementById('btn-generate-draft'); btn.innerText = "작성 중..."; btn.disabled = true;
+      const resultArea = document.getElementById('draftFinalResult');
+      resultArea.value = ""; // 텍스트 상자 초기화
+      
+      goToDraftStep(2); // 버튼 누르자마자 3단계 결과 화면으로 이동해서 타이핑 되는 걸 보여줌!
+
       try {
         const bodyData = { contents: [{ role: "user", parts: [{ text: `특허청 통지서 원문: ${document.getElementById('originalContext').value}\n초안: ${document.getElementById('userDraftResponse').value}\n템플릿: ${document.getElementById('userTemplate').value}` }] }] };
-        const data = await safeFetch('/api/gemini', bodyData);
-        document.getElementById('draftFinalResult').value = data.candidates[0].content.parts[0].text;
-        goToDraftStep(2);
-      } catch (error) { alert("🚨 통신 오류 발생:\n\n" + error.message); } 
+        
+        // 텍스트 조각이 도착할 때마다 화면에 이어 붙이고 스크롤을 내림
+        await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
+           resultArea.value += textChunk;
+           resultArea.scrollTop = resultArea.scrollHeight; 
+        });
+      } catch (error) { alert("🚨 통신 오류 발생:\n\n" + error.message); goToDraftStep(1); } 
       finally { btn.innerText = "최종 문서 생성"; btn.disabled = false; }
     }
+    
     function copyDraft() { navigator.clipboard.writeText(document.getElementById('draftFinalResult').value); alert('복사완료'); }
 
     let idsState = { historyFiles: [], targetFiles: [] };
     function handleFileSelect(e, type) { idsState[type + 'Files'] = [...idsState[type + 'Files'], ...Array.from(e.target.files)]; document.getElementById(type + 'FileList').innerHTML = idsState[type + 'Files'].map((f, i) => `<li class="flex justify-between p-2 bg-slate-50 border"><span>${f.name}</span><button onclick="idsState['${type}Files'].splice(${i}, 1); document.getElementById('${type}FileList').innerHTML=''" class="text-red-400">✕</button></li>`).join(''); }
 
+    // 💡 핵심 3: IDS 분석기도 끊기지 않도록 스트리밍 함수를 타도록 수정 (결과는 한번에 출력)
     async function runIDSAnalysis() {
       const btn = document.getElementById('btn-run-ids'); const btnText = document.getElementById('ids-btn-text');
       const textInput = document.getElementById('manualRefsText').value.trim();
       if (!idsState.historyFiles.length) return alert("History PDF 필요"); if (!idsState.targetFiles.length && !textInput) return alert("Target 필요");
 
-      btn.disabled = true; btnText.innerText = "분석 중...";
+      btn.disabled = true; btnText.innerText = "분석 중 (100초 이상 소요될 수 있습니다)...";
       try {
         let parts = [{ text: `Target 문서(및 텍스트: ${textInput})에서 인용된 문헌 추출 후 History 문서들과 교차 검증. JSON 배열 반환: [{ "id": "문헌 번호", "type": "Patent/NPL", "status": "NEW/ALREADY_FILED", "source": "출처" }]` }];
         for (let f of idsState.historyFiles) { parts.push({ inlineData: { mimeType: f.type, data: await fileToBase64(f) } }); parts.push({ text: `[History: ${f.name}]` }); }
         for (let f of idsState.targetFiles) { parts.push({ inlineData: { mimeType: f.type, data: await fileToBase64(f) } }); parts.push({ text: `[Target: ${f.name}]` }); }
 
-        const data = await safeFetch('/api/gemini', { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } });
-        const resultsArray = JSON.parse(data.candidates[0].content.parts[0].text);
+        // 스트리밍으로 데이터를 받되, IDS는 JSON 형태여야 하므로 백그라운드에서 전체 텍스트를 모음
+        const fullText = await streamFetchGemini('/api/gemini', { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } });
+        const resultsArray = JSON.parse(fullText);
         
         document.getElementById('ids-empty-state').classList.add('hidden'); document.getElementById('ids-results-container').classList.remove('hidden');
         document.getElementById('ids-result-list').innerHTML = resultsArray.map(res => `<li class="flex justify-between p-4 border-b"><div><b>${res.id}</b><div class="text-xs text-slate-400">${res.source}</div></div><span class="px-2 py-1 text-xs font-bold rounded ${res.status==='NEW'?'bg-green-100 text-green-700':'bg-slate-100 text-slate-500'}">${res.status}</span></li>`).join('');
@@ -132,8 +162,10 @@
       } catch (error) { alert("🚨 통신 오류 발생:\n\n" + error.message); } 
       finally { btn.disabled = false; btnText.innerText = "필터링 분석 실행"; }
     }
+    
     function resetIDS() { idsState = { historyFiles: [], targetFiles: [] }; document.getElementById('manualRefsText').value = ''; document.getElementById('historyFileList').innerHTML=''; document.getElementById('targetFileList').innerHTML=''; document.getElementById('ids-empty-state').classList.remove('hidden'); document.getElementById('ids-results-container').classList.add('hidden'); }
     function switchTab(tab) { document.getElementById('tool-draft').classList.toggle('hidden', tab !== 'draft'); document.getElementById('tool-draft').classList.toggle('flex', tab === 'draft'); document.getElementById('tool-ids').classList.toggle('hidden', tab !== 'ids'); document.getElementById('tab-draft').className = `py-4 font-bold border-b-2 ${tab === 'draft' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`; document.getElementById('tab-ids').className = `py-4 font-bold border-b-2 ${tab === 'ids' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'}`; }
   </script>
 </body>
+
 </html>
