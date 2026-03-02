@@ -75,7 +75,7 @@
     </div>
   </main>
 
- <script>
+<script>
     function fileToBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file); }); }
     
     let draftStep = 0;
@@ -83,15 +83,18 @@
     function checkDraftStep1() { document.getElementById('btn-next-step1').disabled = !(document.getElementById('originalContext').value.trim() && document.getElementById('userDraftResponse').value.trim()); }
     function checkDraftStep2() { document.getElementById('btn-generate-draft').disabled = !document.getElementById('userTemplate').value.trim(); }
 
-    // 💡 핵심: 잘린 데이터를 이어붙이는 버퍼(buffer) 로직이 추가된 스트리밍 수신 함수
+    // 💡 핵심: 공백이나 엔터키로 인한 파싱 에러를 완벽하게 방지한 수신 함수
     async function streamFetchGemini(url, bodyData, onChunk) {
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyData) });
-      if (!response.ok) throw new Error("서버 통신 실패 (상태코드: " + response.status + ")");
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`서버 통신 실패 (상태코드: ${response.status})\n${errText}`);
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let fullText = "";
-      let buffer = ""; // 데이터 조각 본드 역할
+      let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -99,20 +102,21 @@
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        
-        // 마지막 줄은 문장이 잘려있을 수 있으므로 버퍼에 남겨서 다음 조각이랑 붙임
-        buffer = lines.pop(); 
+        buffer = lines.pop(); // 불완전한 마지막 줄은 버퍼에 보관
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-             const dataStr = line.substring(6).trim();
-             if (dataStr === '[DONE]') continue;
+        for (let line of lines) {
+          line = line.trim(); // 불필요한 공백/엔터 완벽 제거
+          if (line.startsWith('data:')) {
+             const dataStr = line.substring(5).trim();
+             if (dataStr === '[DONE]' || !dataStr) continue;
              try {
                 const dataObj = JSON.parse(dataStr);
                 const textPart = dataObj.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                fullText += textPart;
-                if (onChunk) onChunk(textPart); // 한 글자씩 출력
-             } catch(e) { console.error("데이터 조각 파싱 대기 중..."); }
+                if (textPart) {
+                   fullText += textPart;
+                   if (onChunk) onChunk(textPart);
+                }
+             } catch(e) { console.error("조각 파싱 무시:", e); }
           }
         }
       }
@@ -131,9 +135,9 @@
         
         await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
            resultArea.value += textChunk;
-           resultArea.scrollTop = resultArea.scrollHeight; // 스크롤이 자동으로 따라가도록 설정
+           resultArea.scrollTop = resultArea.scrollHeight; 
         });
-      } catch (error) { alert("🚨 통신 오류 발생:\n\n" + error.message); goToDraftStep(1); } 
+      } catch (error) { alert("🚨 에러 발생:\n\n" + error.message); goToDraftStep(1); } 
       finally { btn.innerText = "최종 문서 생성"; btn.disabled = false; }
     }
     
@@ -147,7 +151,7 @@
       const textInput = document.getElementById('manualRefsText').value.trim();
       if (!idsState.historyFiles.length) return alert("History PDF 필요"); if (!idsState.targetFiles.length && !textInput) return alert("Target 필요");
 
-      btn.disabled = true; btnText.innerText = "분석 중 (잠시만 기다려주세요)...";
+      btn.disabled = true; btnText.innerText = "분석 중...";
       try {
         let parts = [{ text: `Target 문서(및 텍스트: ${textInput})에서 인용된 문헌 추출 후 History 문서들과 교차 검증. JSON 배열 반환: [{ "id": "문헌 번호", "type": "Patent/NPL", "status": "NEW/ALREADY_FILED", "source": "출처" }]` }];
         for (let f of idsState.historyFiles) { parts.push({ inlineData: { mimeType: f.type, data: await fileToBase64(f) } }); parts.push({ text: `[History: ${f.name}]` }); }
@@ -159,7 +163,7 @@
         document.getElementById('ids-empty-state').classList.add('hidden'); document.getElementById('ids-results-container').classList.remove('hidden');
         document.getElementById('ids-result-list').innerHTML = resultsArray.map(res => `<li class="flex justify-between p-4 border-b"><div><b>${res.id}</b><div class="text-xs text-slate-400">${res.source}</div></div><span class="px-2 py-1 text-xs font-bold rounded ${res.status==='NEW'?'bg-green-100 text-green-700':'bg-slate-100 text-slate-500'}">${res.status}</span></li>`).join('');
         document.getElementById('res-total').innerText = resultsArray.length; document.getElementById('res-new').innerText = resultsArray.filter(r=>r.status==='NEW').length;
-      } catch (error) { alert("🚨 통신 오류 발생:\n\n" + error.message); } 
+      } catch (error) { alert("🚨 에러 발생:\n\n" + error.message); } 
       finally { btn.disabled = false; btnText.innerText = "필터링 분석 실행"; }
     }
     
@@ -169,4 +173,5 @@
 </body>
 
 </html>
+
 
