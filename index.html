@@ -170,7 +170,7 @@
 
     async function generateDraft() {
       const btn = document.getElementById('btn-generate-draft'); 
-      const statusTitle = document.getElementById('draft-status-title'); // 💡 제목 요소 가져오기
+      const statusTitle = document.getElementById('draft-status-title'); 
       
       btn.innerText = "작성 중..."; 
       btn.disabled = true;
@@ -178,17 +178,25 @@
       resultArea.value = ""; 
       
       goToDraftStep(2); 
-      statusTitle.innerText = "작성 중... ✍️"; // 💡 화면이 넘어가자마자 '작성 중'으로 변경!
+      statusTitle.innerText = "작성 중... ✍️"; 
 
       try {
-        const bodyData = { contents: [{ role: "user", parts: [{ text: `특허청 통지서 원문: ${document.getElementById('originalContext').value}\n초안: ${document.getElementById('userDraftResponse').value}\n템플릿: ${document.getElementById('userTemplate').value}` }] }] };
+        // 🚨 수정된 부분: 프롬프트는 빼고, 순수 입력 데이터만 백엔드로 전송
+        const bodyData = { 
+          type: 'draft',
+          data: {
+            originalContext: document.getElementById('originalContext').value,
+            userDraftResponse: document.getElementById('userDraftResponse').value,
+            userTemplate: document.getElementById('userTemplate').value
+          }
+        };
         
         await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
            resultArea.value += textChunk;
            resultArea.scrollTop = resultArea.scrollHeight; 
         });
         
-        statusTitle.innerText = "완료 ✅"; // 💡 타자 치기가 무사히 끝나면 '완료'로 변경!
+        statusTitle.innerText = "완료 ✅"; 
         
       } catch (error) { 
         alert("🚨 에러 발생:\n\n" + error.message); 
@@ -275,7 +283,6 @@
       const resultContainer = document.getElementById('compare-result-container');
       const resultContent = document.getElementById('compare-result-content');
 
-      // 버튼 로딩 상태로 변경 (리액트 코드 스타일 적용)
       btn.disabled = true;
       btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
       btn.classList.add('bg-indigo-400', 'cursor-not-allowed');
@@ -285,15 +292,15 @@
       resultContent.innerText = ''; // 초기화
 
       try {
-        // AI에게 전달할 프롬프트 구조 (필요시 수정하세요)
-        const promptText = `너는 전문 특허 번역가이자 명세사야. 아래 한국어 특허 청구항 원문과 영문 번역본을 교차 검증해서 다음 항목을 분석해줘:\n\n1. 누락되거나 잘못 번역된 구성요소\n2. 법적 권리 범위의 변동 가능성 (원문과 번역본 간의 괴리)\n3. 특허 용어(Terminology)의 적절성\n4. 종합적인 수정 제안\n\n[한국어 원문]\n${krText}\n\n[영문 번역본]\n${enText}`;
-
+        // 🚨 수정된 부분: 길었던 프롬프트(promptText)를 완전히 삭제하고 데이터만 전송
         const bodyData = {
-          contents: [{ role: "user", parts: [{ text: promptText }] }],
-          generationConfig: { temperature: 0.1 } // 보수적이고 정확한 분석을 위해 낮은 온도 설정
+          type: 'compare',
+          data: {
+            krText: krText,
+            enText: enText
+          }
         };
 
-        // 기존에 잘 만들어두신 스트리밍 함수 활용
         await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
           resultContent.innerText += textChunk;
         });
@@ -301,7 +308,6 @@
       } catch (error) {
         alert("🚨 에러 발생:\n\n" + error.message);
       } finally {
-        // 버튼 원래 상태로 복구
         btn.disabled = false;
         btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
         btn.classList.remove('bg-indigo-400', 'cursor-not-allowed');
@@ -312,6 +318,7 @@
 </body>
 
 </html>
+
 
 
 
