@@ -25,6 +25,8 @@
     <div class="max-w-7xl mx-auto px-6 flex space-x-8">
       <button id="tab-draft" onclick="switchTab('draft')" class="py-4 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600">의견서 생성기</button>
       <button id="tab-ids" onclick="switchTab('ids')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500">IDS 판별기</button>
+      
+      <button id="tab-compare" onclick="switchTab('compare')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500">청구항 대조기</button>
     </div>
   </div>
 
@@ -74,7 +76,50 @@
       </div>
     </div>
   </main>
+<main id="tool-compare" class="flex-grow flex flex-col max-w-7xl mx-auto py-10 px-6 w-full hidden">
+    <div class="mb-8">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900 tracking-tight">청구항 대조 분석 (Claim Comparison)</h2>
+          <p class="text-slate-500 mt-1 text-sm">한국어 특허 청구항 원문과 영문 번역본을 입력하여 의미적, 법적 일관성을 검증합니다.</p>
+        </div>
+        <div class="flex items-center space-x-3 w-full md:w-auto">
+          <button onclick="clearCompareInputs()" class="flex-1 md:flex-none px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all">
+            전체 삭제
+          </button>
+          <button id="btn-run-compare" onclick="runCompare()" class="flex-1 md:flex-none px-8 py-2.5 text-sm font-bold text-white rounded-xl transition-all shadow-lg shadow-indigo-100 bg-indigo-600 hover:bg-indigo-700 active:scale-95 flex items-center justify-center">
+            교차 검증 실행
+          </button>
+        </div>
+      </div>
 
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="group flex flex-col">
+          <label class="text-xs font-bold text-slate-500 uppercase mb-2 ml-1 flex justify-between items-center">
+            <span>한국어 청구항 원문 (KR)</span>
+            <span id="kr-char-count" class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">0 자</span>
+          </label>
+          <textarea id="kr-claim-input" oninput="updateCompareCounts()" placeholder="검증할 한국어 청구항 텍스트를 붙여넣으세요..." class="flex-grow min-h-[350px] p-6 text-sm font-mono bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm group-hover:shadow-md resize-y leading-relaxed"></textarea>
+        </div>
+
+        <div class="group flex flex-col">
+          <label class="text-xs font-bold text-slate-500 uppercase mb-2 ml-1 flex justify-between items-center">
+            <span>영문 번역본 (EN)</span>
+            <span id="en-word-count" class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">0 단어</span>
+          </label>
+          <textarea id="en-claim-input" oninput="updateCompareCounts()" placeholder="번역된 영문 청구항 텍스트를 입력하세요..." class="flex-grow min-h-[350px] p-6 text-sm font-mono bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm group-hover:shadow-md resize-y leading-relaxed"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div id="compare-result-container" class="hidden mt-4">
+      <h3 class="text-xl font-bold mb-4 text-slate-900">분석 결과</h3>
+      <div class="bg-white rounded-3xl border shadow-sm p-8 bg-[#f8fafc]">
+        <div id="compare-result-content" class="font-mono text-sm leading-loose whitespace-pre-wrap text-slate-800"></div>
+      </div>
+    </div>
+  </main>
+  
 <script>
     function fileToBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file); }); }
     
@@ -181,11 +226,93 @@
     }
     
     function resetIDS() { idsState = { historyFiles: [], targetFiles: [] }; document.getElementById('manualRefsText').value = ''; document.getElementById('historyFileList').innerHTML=''; document.getElementById('targetFileList').innerHTML=''; document.getElementById('ids-empty-state').classList.remove('hidden'); document.getElementById('ids-results-container').classList.add('hidden'); }
-    function switchTab(tab) { document.getElementById('tool-draft').classList.toggle('hidden', tab !== 'draft'); document.getElementById('tool-draft').classList.toggle('flex', tab === 'draft'); document.getElementById('tool-ids').classList.toggle('hidden', tab !== 'ids'); document.getElementById('tab-draft').className = `py-4 font-bold border-b-2 ${tab === 'draft' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`; document.getElementById('tab-ids').className = `py-4 font-bold border-b-2 ${tab === 'ids' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'}`; }
-  </script>
+  
+  // 👇 1. 탭 전환 함수(switchTab) 업데이트 (기존 코드를 이걸로 덮어쓰세요)
+    function switchTab(tab) { 
+      document.getElementById('tool-draft').classList.toggle('hidden', tab !== 'draft'); 
+      document.getElementById('tool-draft').classList.toggle('flex', tab === 'draft'); 
+      
+      document.getElementById('tool-ids').classList.toggle('hidden', tab !== 'ids'); 
+      
+      document.getElementById('tool-compare').classList.toggle('hidden', tab !== 'compare'); 
+      document.getElementById('tool-compare').classList.toggle('flex', tab === 'compare'); 
+
+      const activeClass = "py-4 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600";
+      const inactiveClass = "py-4 text-sm font-bold border-b-2 border-transparent text-slate-500";
+      
+      document.getElementById('tab-draft').className = tab === 'draft' ? activeClass : inactiveClass;
+      document.getElementById('tab-ids').className = tab === 'ids' ? activeClass : inactiveClass;
+      document.getElementById('tab-compare').className = tab === 'compare' ? activeClass : inactiveClass;
+    }
+
+    // 👇 2. 청구항 대조기 관련 로직 추가
+    function updateCompareCounts() {
+      const krText = document.getElementById('kr-claim-input').value;
+      const enText = document.getElementById('en-claim-input').value;
+      
+      document.getElementById('kr-char-count').innerText = `${krText.length} 자`;
+      const enWords = enText.trim() ? enText.trim().split(/\s+/).length : 0;
+      document.getElementById('en-word-count').innerText = `${enWords} 단어`;
+    }
+
+    function clearCompareInputs() {
+      document.getElementById('kr-claim-input').value = '';
+      document.getElementById('en-claim-input').value = '';
+      document.getElementById('compare-result-container').classList.add('hidden');
+      document.getElementById('compare-result-content').innerText = '';
+      updateCompareCounts();
+    }
+
+    async function runCompare() {
+      const krText = document.getElementById('kr-claim-input').value.trim();
+      const enText = document.getElementById('en-claim-input').value.trim();
+
+      if (!krText || !enText) {
+        return alert("🚨 한국어 원문과 영문 번역본을 모두 입력해 주세요.");
+      }
+
+      const btn = document.getElementById('btn-run-compare');
+      const resultContainer = document.getElementById('compare-result-container');
+      const resultContent = document.getElementById('compare-result-content');
+
+      // 버튼 로딩 상태로 변경 (리액트 코드 스타일 적용)
+      btn.disabled = true;
+      btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+      btn.classList.add('bg-indigo-400', 'cursor-not-allowed');
+      btn.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>분석 중...`;
+      
+      resultContainer.classList.remove('hidden');
+      resultContent.innerText = ''; // 초기화
+
+      try {
+        // AI에게 전달할 프롬프트 구조 (필요시 수정하세요)
+        const promptText = `너는 전문 특허 번역가이자 명세사야. 아래 한국어 특허 청구항 원문과 영문 번역본을 교차 검증해서 다음 항목을 분석해줘:\n\n1. 누락되거나 잘못 번역된 구성요소\n2. 법적 권리 범위의 변동 가능성 (원문과 번역본 간의 괴리)\n3. 특허 용어(Terminology)의 적절성\n4. 종합적인 수정 제안\n\n[한국어 원문]\n${krText}\n\n[영문 번역본]\n${enText}`;
+
+        const bodyData = {
+          contents: [{ role: "user", parts: [{ text: promptText }] }],
+          generationConfig: { temperature: 0.1 } // 보수적이고 정확한 분석을 위해 낮은 온도 설정
+        };
+
+        // 기존에 잘 만들어두신 스트리밍 함수 활용
+        await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
+          resultContent.innerText += textChunk;
+        });
+
+      } catch (error) {
+        alert("🚨 에러 발생:\n\n" + error.message);
+      } finally {
+        // 버튼 원래 상태로 복구
+        btn.disabled = false;
+        btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+        btn.classList.remove('bg-indigo-400', 'cursor-not-allowed');
+        btn.innerText = "교차 검증 실행";
+      }
+    }
+</script>
 </body>
 
 </html>
+
 
 
 
