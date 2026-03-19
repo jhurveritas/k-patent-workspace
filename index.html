@@ -320,29 +320,68 @@
     
     function copyDraft() { navigator.clipboard.writeText(document.getElementById('draftFinalResult').value); alert('클립보드에 복사되었습니다.'); }
 
-    // IDS 관련 로직 (유지)
+   // IDS 관련 로직
     let idsState = { historyFiles: [], targetFiles: [] };
     function handleFileSelect(e, type) { idsState[type + 'Files'] = [...idsState[type + 'Files'], ...Array.from(e.target.files)]; document.getElementById(type + 'FileList').innerHTML = idsState[type + 'Files'].map((f, i) => `<li class="flex justify-between p-2 bg-slate-50 border"><span>${f.name}</span><button onclick="idsState['${type}Files'].splice(${i}, 1); document.getElementById('${type}FileList').innerHTML=''" class="text-red-400">✕</button></li>`).join(''); }
 
+    // 👇 변경된 runIDSAnalysis 함수
     async function runIDSAnalysis() {
-      const btn = document.getElementById('btn-run-ids'); const btnText = document.getElementById('ids-btn-text');
+      const btn = document.getElementById('btn-run-ids'); 
+      const btnText = document.getElementById('ids-btn-text');
       const textInput = document.getElementById('manualRefsText').value.trim();
-      if (!idsState.historyFiles.length) return alert("History PDF 필요"); if (!idsState.targetFiles.length && !textInput) return alert("Target 필요");
+      
+      if (!idsState.historyFiles.length) return alert("History PDF 필요"); 
+      if (!idsState.targetFiles.length && !textInput) return alert("Target 필요");
 
-      btn.disabled = true; btnText.innerText = "분석 중...";
+      btn.disabled = true; 
+      btnText.innerText = "분석 중...";
+      
       try {
-        let parts = [{ text: `Target 문서(및 텍스트: ${textInput})에서 인용된 문헌 추출 후 History 문서들과 교차 검증. JSON 배열 반환: [{ "id": "문헌 번호", "type": "Patent/NPL", "status": "NEW/ALREADY_FILED", "source": "출처" }]` }];
-        for (let f of idsState.historyFiles) { parts.push({ inlineData: { mimeType: f.type, data: await fileToBase64(f) } }); parts.push({ text: `[History: ${f.name}]` }); }
-        for (let f of idsState.targetFiles) { parts.push({ inlineData: { mimeType: f.type, data: await fileToBase64(f) } }); parts.push({ text: `[Target: ${f.name}]` }); }
+        // 파일을 백엔드 전송용 규격으로 변환하는 도우미 함수
+        const processFiles = async (files) => {
+          return await Promise.all(files.map(async f => ({
+            name: f.name,
+            mimeType: f.type,
+            base64: await fileToBase64(f)
+          })));
+        };
 
-        const fullText = await streamFetchGemini('/api/gemini', { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } });
+        // 구조화된 데이터 페이로드 생성
+        const bodyData = {
+          type: 'ids',
+          data: {
+            historyFiles: await processFiles(idsState.historyFiles),
+            targetFiles: await processFiles(idsState.targetFiles),
+            textInput: textInput
+          }
+        };
+
+        // 백엔드로 전송 (streamFetchGemini 사용)
+        const fullText = await streamFetchGemini('/api/gemini', bodyData);
+        
+        // 결과 JSON 파싱
         const resultsArray = JSON.parse(fullText);
         
-        document.getElementById('ids-empty-state').classList.add('hidden'); document.getElementById('ids-results-container').classList.remove('hidden');
-        document.getElementById('ids-result-list').innerHTML = resultsArray.map(res => `<li class="flex justify-between p-4 border-b"><div><b>${res.id}</b><div class="text-xs text-slate-400">${res.source}</div></div><span class="px-2 py-1 text-xs font-bold rounded ${res.status==='NEW'?'bg-green-100 text-green-700':'bg-slate-100 text-slate-500'}">${res.status}</span></li>`).join('');
-        document.getElementById('res-total').innerText = resultsArray.length; document.getElementById('res-new').innerText = resultsArray.filter(r=>r.status==='NEW').length;
-      } catch (error) { alert("🚨 에러 발생:\n\n" + error.message); } 
-      finally { btn.disabled = false; btnText.innerText = "필터링 분석 실행"; }
+        // UI 업데이트
+        document.getElementById('ids-empty-state').classList.add('hidden'); 
+        document.getElementById('ids-results-container').classList.remove('hidden');
+        
+        document.getElementById('ids-result-list').innerHTML = resultsArray.map(res => 
+          `<li class="flex justify-between p-4 border-b">
+            <div><b>${res.id}</b><div class="text-xs text-slate-400">${res.source}</div></div>
+            <span class="px-2 py-1 text-xs font-bold rounded ${res.status==='NEW' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}">${res.status}</span>
+           </li>`
+        ).join('');
+        
+        document.getElementById('res-total').innerText = resultsArray.length; 
+        document.getElementById('res-new').innerText = resultsArray.filter(r => r.status==='NEW').length;
+        
+      } catch (error) { 
+        alert("🚨 에러 발생:\n\n" + error.message); 
+      } finally { 
+        btn.disabled = false; 
+        btnText.innerText = "필터링 분석 실행"; 
+      }
     }
     
     function resetIDS() { idsState = { historyFiles: [], targetFiles: [] }; document.getElementById('manualRefsText').value = ''; document.getElementById('historyFileList').innerHTML=''; document.getElementById('targetFileList').innerHTML=''; document.getElementById('ids-empty-state').classList.remove('hidden'); document.getElementById('ids-results-container').classList.add('hidden'); }
