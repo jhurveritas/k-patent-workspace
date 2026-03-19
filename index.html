@@ -10,6 +10,20 @@
     textarea::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
     .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    /* 전체 화면 드래그 및 텍스트 선택 방지 */
+body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+/* 단, 사용자가 글자를 입력해야 하는 textarea와 input은 예외 처리 (매우 중요!) */
+textarea, input {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
   </style>
 </head>
 <body class="min-h-screen bg-[#f8fafc] flex flex-col antialiased">
@@ -428,6 +442,39 @@
 
     // 초기화
     updateInd('draft', 0); updateInd('oa', 0);
+
+  // 1. 마우스 우클릭 방지
+document.addEventListener('contextmenu', function(e) {
+  e.preventDefault();
+});
+
+// 2. 키보드 단축키 방지 (F12, Ctrl+Shift+I, Ctrl+U 등)
+document.addEventListener('keydown', function(e) {
+  // F12 (개발자 도구)
+  if (e.keyCode === 123) {
+    e.preventDefault();
+  }
+  // Ctrl+Shift+I / J / C (개발자 도구 단축키들)
+  if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) {
+    e.preventDefault();
+  }
+  // Ctrl+U (페이지 소스 보기)
+  if (e.ctrlKey && e.keyCode === 85) {
+    e.preventDefault();
+  }
+  // Mac용 단축키 (Cmd+Option+I, Cmd+Option+C, Cmd+Option+U)
+  if (e.metaKey && e.altKey && (e.keyCode === 73 || e.keyCode === 67 || e.keyCode === 85)) {
+    e.preventDefault();
+  }
+});
+
+// 3. 드래그 앤 드롭 복사 방지
+document.addEventListener('dragstart', function(e) {
+  // textarea나 input 안에서의 드래그는 허용
+  if (e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
+    e.preventDefault();
+  }
+});
 </script>
 </body>
 </html>
