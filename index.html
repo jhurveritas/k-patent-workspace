@@ -33,16 +33,14 @@
     <div class="max-w-7xl mx-auto px-6 flex space-x-8">
       <button id="tab-draft" onclick="switchTab('draft')" class="py-4 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition-all">의견서 생성기</button>
       <button id="tab-ids" onclick="switchTab('ids')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">IDS 판별기</button>
-      <button id="tab-compare" onclick="switchTab('compare')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">청구항 대조기</button>
+      <button id="tab-compare" onclick="switchTab('compare')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">한/영 청구항 대조기</button>
     </div>
   </div>
 
   <main id="tool-draft" class="flex-grow flex flex-col max-w-6xl mx-auto w-full py-10 px-6 block">
-    
     <div class="flex items-center justify-between max-w-lg mx-auto mb-10 w-full relative">
       <div id="ind-line-1" class="absolute top-4 left-0 w-1/2 h-[2px] bg-gray-200 -z-10 transition-colors"></div>
       <div id="ind-line-2" class="absolute top-4 right-0 w-1/2 h-[2px] bg-gray-200 -z-10 transition-colors"></div>
-      
       <div class="flex flex-col items-center relative z-10 bg-[#f8fafc] px-2">
         <div id="ind-circle-1" class="w-8 h-8 rounded-full flex items-center justify-center border-2 bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200 transition-all">1</div>
         <span id="ind-text-1" class="mt-2 text-[10px] font-bold uppercase tracking-widest text-indigo-900">기초 자료</span>
@@ -58,7 +56,6 @@
     </div>
 
     <div class="bg-white rounded-3xl shadow-sm border border-gray-200 flex-grow flex flex-col overflow-hidden min-h-[650px]">
-      
       <div id="step-1" class="p-10 space-y-8 animate-fadeIn flex-grow flex flex-col">
         <div class="space-y-1">
           <h2 class="text-2xl font-black text-gray-900 tracking-tight">기초 자료 및 대응 논리</h2>
@@ -98,12 +95,10 @@
         </div>
         <div class="pt-6 border-t border-gray-50 flex justify-between items-center">
           <button onclick="goToDraftStep(0)" class="px-8 py-3 text-gray-400 font-bold hover:text-indigo-600 transition-colors">이전 단계</button>
-          
           <div id="loading-spinner" class="hidden items-center space-x-4 pr-4">
             <div class="w-5 h-5 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
             <span class="text-sm font-bold text-indigo-600">AI가 문서를 작성 중입니다...</span>
           </div>
-
           <button id="btn-generate-draft" disabled onclick="generateDraft()" class="px-12 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-40 flex items-center transition-all active:scale-95">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" /></svg>
             <span class="ml-3">최종 문서 생성</span>
@@ -133,19 +128,22 @@
           <div class="opacity-50 font-normal">본 문서는 AI 초안이므로 최종 제출 전 변리사 검토를 권장합니다.</div>
         </div>
       </div>
-
     </div>
   </main>
 
   <main id="tool-ids" class="max-w-7xl mx-auto px-4 py-8 w-full hidden">
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
       <div class="lg:col-span-5 space-y-6">
-        <div class="bg-white p-6 rounded-xl border-l-4 border-l-red-400 shadow-sm"><h3 class="font-bold mb-2">1. 기존 제출 내역 (History)</h3>
-           <div class="border-2 border-dashed p-4 text-center cursor-pointer hover:bg-slate-50 transition" onclick="document.getElementById('historyFiles').click()"><input type="file" id="historyFiles" multiple accept=".pdf" class="hidden" onchange="handleFileSelect(event, 'history')"><span class="text-sm">PDF 선택</span></div><ul id="historyFileList" class="mt-3 text-sm"></ul>
+        <div class="bg-white p-6 rounded-xl border-l-4 border-l-red-400 shadow-sm">
+          <h3 class="font-bold mb-2">1. 기존 제출 내역 (History)</h3>
+          <div class="border-2 border-dashed p-4 text-center cursor-pointer hover:bg-slate-50 transition" onclick="document.getElementById('historyFiles').click()"><input type="file" id="historyFiles" multiple accept=".pdf" class="hidden" onchange="handleFileSelect(event, 'history')"><span class="text-sm">PDF 선택</span></div>
+          <ul id="historyFileList" class="mt-3 text-sm"></ul>
         </div>
-        <div class="bg-white p-6 rounded-xl border-l-4 border-l-green-500 shadow-sm"><h3 class="font-bold mb-2">2. 신규 인용 문헌 (Target)</h3>
-           <div class="border-2 border-dashed p-4 text-center cursor-pointer mb-3 hover:bg-slate-50 transition" onclick="document.getElementById('targetFiles').click()"><input type="file" id="targetFiles" multiple accept=".pdf" class="hidden" onchange="handleFileSelect(event, 'target')"><span class="text-sm">PDF 선택</span></div><ul id="targetFileList" class="mb-3 text-sm"></ul>
-           <textarea id="manualRefsText" class="w-full h-24 p-3 border rounded-lg text-sm outline-none focus:border-slate-500" placeholder="수동 텍스트 입력"></textarea>
+        <div class="bg-white p-6 rounded-xl border-l-4 border-l-green-500 shadow-sm">
+          <h3 class="font-bold mb-2">2. 신규 인용 문헌 (Target)</h3>
+          <div class="border-2 border-dashed p-4 text-center cursor-pointer mb-3 hover:bg-slate-50 transition" onclick="document.getElementById('targetFiles').click()"><input type="file" id="targetFiles" multiple accept=".pdf" class="hidden" onchange="handleFileSelect(event, 'target')"><span class="text-sm">PDF 선택</span></div>
+          <ul id="targetFileList" class="mb-3 text-sm"></ul>
+          <textarea id="manualRefsText" class="w-full h-24 p-3 border rounded-lg text-sm outline-none focus:border-slate-500" placeholder="수동 텍스트 입력"></textarea>
         </div>
         <button id="btn-run-ids" onclick="runIDSAnalysis()" class="w-full py-4 rounded-xl bg-slate-900 text-white font-bold text-lg hover:bg-slate-800 transition"><span id="ids-btn-text">필터링 분석 실행</span></button>
       </div>
@@ -159,18 +157,22 @@
     </div>
   </main>
 
-  <main id="tool-compare" class="flex-grow flex flex-col max-w-7xl mx-auto py-10 px-6 w-full hidden">
+  <main id="tool-compare" class="flex-grow flex flex-col max-w-7xl mx-auto py-10 px-6 w-full hidden animate-fadeIn">
+    
     <div class="mb-8">
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h2 class="text-2xl font-bold text-slate-900 tracking-tight">청구항 대조 분석 (Claim Comparison)</h2>
+          <h2 class="text-2xl font-bold text-slate-900 tracking-tight">한/영 청구항 대조 분석 (Claim Comparison)</h2>
           <p class="text-slate-500 mt-1 text-sm">한국어 특허 청구항 원문과 영문 번역본을 입력하여 의미적, 법적 일관성을 검증합니다.</p>
         </div>
         <div class="flex items-center space-x-3 w-full md:w-auto">
           <button onclick="clearCompareInputs()" class="flex-1 md:flex-none px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all">전체 삭제</button>
-          <button id="btn-run-compare" onclick="runCompare()" class="flex-1 md:flex-none px-8 py-2.5 text-sm font-bold text-white rounded-xl transition-all shadow-lg shadow-indigo-100 bg-indigo-600 hover:bg-indigo-700 active:scale-95 flex items-center justify-center">교차 검증 실행</button>
+          <button id="btn-run-compare" onclick="runCompare()" class="flex-1 md:flex-none px-8 py-2.5 text-sm font-bold text-white rounded-xl transition-all shadow-lg shadow-indigo-100 bg-indigo-600 hover:bg-indigo-700 active:scale-95 flex items-center justify-center">
+            <span id="btn-compare-text">교차 검증 실행</span>
+          </button>
         </div>
       </div>
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="group flex flex-col">
           <label class="text-xs font-bold text-slate-500 uppercase mb-2 ml-1 flex justify-between items-center">
@@ -186,14 +188,54 @@
         </div>
       </div>
     </div>
-    <div id="compare-result-container" class="hidden mt-4">
+
+    <div id="compare-error-box" class="hidden mb-8 p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-sm flex items-start animate-fadeIn shadow-sm">
+      <svg class="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      <p id="compare-error-text" class="font-bold"></p>
+    </div>
+
+    <div id="compare-empty-state" class="py-24 flex flex-col items-center justify-center text-center opacity-50 transition-all">
+      <div class="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mb-6 border border-slate-200">
+        <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      </div>
+      <h3 class="text-xl font-bold text-slate-900 mb-2">분석 대기 중</h3>
+      <p class="max-w-sm text-slate-500 text-sm leading-relaxed">상단에 한국어 원문과 영문 번역본을 입력하고<br/>'교차 검증 실행' 버튼을 눌러 정밀 분석을 시작하세요.</p>
+    </div>
+
+    <div id="compare-result-container" class="hidden mt-4 animate-fadeIn">
       <h3 class="text-xl font-bold mb-4 text-slate-900">분석 결과</h3>
       <div class="bg-white rounded-3xl border shadow-sm p-8 bg-[#f8fafc]">
         <div id="compare-result-content" class="font-mono text-sm leading-loose whitespace-pre-wrap text-slate-800"></div>
       </div>
     </div>
   </main>
-  
+
+  <footer class="bg-slate-900 text-slate-500 py-16 mt-auto border-t border-slate-800 w-full z-10 relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+        <div>
+          <div class="flex items-center space-x-2 text-white font-black text-xl mb-6">
+            <div class="w-7 h-7 bg-indigo-500 rounded-lg flex items-center justify-center text-xs shadow-lg shadow-indigo-500/50">P</div>
+            <span class="tracking-tight">PatentBridge</span>
+          </div>
+          <p class="text-sm max-w-sm leading-relaxed text-slate-400">
+            특허 전문가를 위한 차세대 AI 분석 엔진. 한국어와 영어 사이의 미묘한 법적 차이를 파악하여 완벽한 특허 출원을 지원합니다.
+          </p>
+        </div>
+        <div class="flex flex-col md:items-end gap-4 text-xs">
+          <div class="flex items-center space-x-6">
+            <a href="#" class="hover:text-white transition-colors">개인정보 처리방침</a>
+            <a href="#" class="hover:text-white transition-colors">이용 약관</a>
+            <a href="#" class="hover:text-white transition-colors">고객 지원</a>
+          </div>
+          <p class="text-slate-600 font-medium">&copy; 2024 PatentBridge Verifier. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
 <script>
     function fileToBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file); }); }
     
@@ -292,13 +334,13 @@
           type: 'draft',
           data: {
             originalContext: document.getElementById('originalContext').value,
-            amendmentContext: document.getElementById('amendmentContext').value, // 보정서 원문 추가됨
+            amendmentContext: document.getElementById('amendmentContext').value,
             userDraftResponse: document.getElementById('userDraftResponse').value,
             userTemplate: document.getElementById('userTemplate').value
           }
         };
         
-        goToDraftStep(2); // Step 3로 이동하며 인디케이터 등 모두 변경
+        goToDraftStep(2); 
         statusTitle.innerText = "작성 중... ✍️"; 
 
         await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
@@ -320,11 +362,10 @@
     
     function copyDraft() { navigator.clipboard.writeText(document.getElementById('draftFinalResult').value); alert('클립보드에 복사되었습니다.'); }
 
-   // IDS 관련 로직
+    // IDS 관련 로직 (유지)
     let idsState = { historyFiles: [], targetFiles: [] };
     function handleFileSelect(e, type) { idsState[type + 'Files'] = [...idsState[type + 'Files'], ...Array.from(e.target.files)]; document.getElementById(type + 'FileList').innerHTML = idsState[type + 'Files'].map((f, i) => `<li class="flex justify-between p-2 bg-slate-50 border"><span>${f.name}</span><button onclick="idsState['${type}Files'].splice(${i}, 1); document.getElementById('${type}FileList').innerHTML=''" class="text-red-400">✕</button></li>`).join(''); }
 
-    // 👇 변경된 runIDSAnalysis 함수
     async function runIDSAnalysis() {
       const btn = document.getElementById('btn-run-ids'); 
       const btnText = document.getElementById('ids-btn-text');
@@ -337,7 +378,6 @@
       btnText.innerText = "분석 중...";
       
       try {
-        // 파일을 백엔드 전송용 규격으로 변환하는 도우미 함수
         const processFiles = async (files) => {
           return await Promise.all(files.map(async f => ({
             name: f.name,
@@ -346,7 +386,6 @@
           })));
         };
 
-        // 구조화된 데이터 페이로드 생성
         const bodyData = {
           type: 'ids',
           data: {
@@ -356,13 +395,9 @@
           }
         };
 
-        // 백엔드로 전송 (streamFetchGemini 사용)
         const fullText = await streamFetchGemini('/api/gemini', bodyData);
-        
-        // 결과 JSON 파싱
         const resultsArray = JSON.parse(fullText);
         
-        // UI 업데이트
         document.getElementById('ids-empty-state').classList.add('hidden'); 
         document.getElementById('ids-results-container').classList.remove('hidden');
         
@@ -385,11 +420,11 @@
     }
     
     function resetIDS() { idsState = { historyFiles: [], targetFiles: [] }; document.getElementById('manualRefsText').value = ''; document.getElementById('historyFileList').innerHTML=''; document.getElementById('targetFileList').innerHTML=''; document.getElementById('ids-empty-state').classList.remove('hidden'); document.getElementById('ids-results-container').classList.add('hidden'); }
-  
+
     // 탭 전환 로직
     function switchTab(tab) { 
       document.getElementById('tool-draft').classList.toggle('hidden', tab !== 'draft'); 
-      document.getElementById('tool-draft').classList.toggle('block', tab === 'draft'); // Flexbox wrapper 호환
+      document.getElementById('tool-draft').classList.toggle('block', tab === 'draft'); 
       
       document.getElementById('tool-ids').classList.toggle('hidden', tab !== 'ids'); 
       
@@ -404,7 +439,7 @@
       document.getElementById('tab-compare').className = tab === 'compare' ? activeClass : inactiveClass;
     }
 
-    // 청구항 대조기 로직
+    // 한/영 청구항 대조기 로직 (🔥 개선됨)
     function updateCompareCounts() {
       const krText = document.getElementById('kr-claim-input').value;
       const enText = document.getElementById('en-claim-input').value;
@@ -414,29 +449,61 @@
     }
 
     function clearCompareInputs() {
-      document.getElementById('kr-claim-input').value = ''; document.getElementById('en-claim-input').value = '';
-      document.getElementById('compare-result-container').classList.add('hidden'); document.getElementById('compare-result-content').innerText = ''; updateCompareCounts();
+      document.getElementById('kr-claim-input').value = ''; 
+      document.getElementById('en-claim-input').value = '';
+      document.getElementById('compare-result-container').classList.add('hidden'); 
+      document.getElementById('compare-result-content').innerText = ''; 
+      document.getElementById('compare-empty-state').classList.remove('hidden'); // 빈 상태 보여주기
+      document.getElementById('compare-error-box').classList.add('hidden'); // 에러 감추기
+      updateCompareCounts();
     }
 
     async function runCompare() {
       const krText = document.getElementById('kr-claim-input').value.trim();
       const enText = document.getElementById('en-claim-input').value.trim();
-      if (!krText || !enText) return alert("🚨 한국어 원문과 영문 번역본을 모두 입력해 주세요.");
+      const errorBox = document.getElementById('compare-error-box');
+      const errorText = document.getElementById('compare-error-text');
+      
+      // 초기화
+      errorBox.classList.add('hidden');
+
+      if (!krText || !enText) {
+        errorText.innerText = "한국어 원문과 영문 번역본을 모두 입력해 주세요.";
+        errorBox.classList.remove('hidden');
+        return;
+      }
 
       const btn = document.getElementById('btn-run-compare');
       const resultContent = document.getElementById('compare-result-content');
+      const emptyState = document.getElementById('compare-empty-state');
+      const resultContainer = document.getElementById('compare-result-container');
 
-      btn.disabled = true; btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700'); btn.classList.add('bg-indigo-400', 'cursor-not-allowed');
-      btn.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>분석 중...`;
+      // 버튼 로딩 상태
+      btn.disabled = true; 
+      btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700'); 
+      btn.classList.add('bg-indigo-400', 'cursor-not-allowed');
+      btn.innerHTML = `<span class="flex items-center justify-center"><svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>분석 중...</span>`;
       
-      document.getElementById('compare-result-container').classList.remove('hidden'); resultContent.innerText = ''; 
+      // UI 뷰 전환
+      emptyState.classList.add('hidden');
+      resultContainer.classList.remove('hidden'); 
+      resultContent.innerText = ''; 
 
       try {
         const bodyData = { type: 'compare', data: { krText: krText, enText: enText } };
         await streamFetchGemini('/api/gemini', bodyData, (textChunk) => { resultContent.innerText += textChunk; });
-      } catch (error) { alert("🚨 에러 발생:\n\n" + error.message); } 
-      finally {
-        btn.disabled = false; btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700'); btn.classList.remove('bg-indigo-400', 'cursor-not-allowed'); btn.innerText = "교차 검증 실행";
+      } catch (error) { 
+        // 스트리밍 실패 시, 에러 표시 및 빈 화면으로 복귀
+        resultContainer.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        errorText.innerText = error.message || "분석 도중 오류가 발생했습니다. 다시 시도해 주세요.";
+        errorBox.classList.remove('hidden');
+      } finally {
+        // 버튼 상태 원복
+        btn.disabled = false; 
+        btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700'); 
+        btn.classList.remove('bg-indigo-400', 'cursor-not-allowed'); 
+        btn.innerHTML = `<span id="btn-compare-text">교차 검증 실행</span>`;
       }
     }
 
