@@ -25,6 +25,33 @@ export async function onRequest(context) {
     }
   }
 
+  // 🔥 [핵심 추가] 구글 File API 고속 업로드 헬퍼 함수
+  async function uploadToGemini(fileData, apiKey) {
+    // 프론트에서 받은 Base64 텍스트를 실제 바이너리(파일)로 복원
+    const binaryString = atob(fileData.base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    // 구글 클라우드 서버로 파일 직배송
+    const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`;
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': fileData.mimeType },
+      body: bytes.buffer
+    });
+    
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`File API 업로드 실패: ${errText}`);
+    }
+    
+    // 업로드 성공 후 발급받은 URI(열쇠) 반환
+    const data = await res.json();
+    return { fileUri: data.file.uri, mimeType: fileData.mimeType, name: fileData.name };
+  }
+
   try {
     const apiKey = context.env.GEMINI_API_KEY;
     if (!apiKey) return new Response(JSON.stringify({ error: "API 키 없음" }), { status: 400 });
@@ -53,34 +80,43 @@ export async function onRequest(context) {
         contents: [{ role: "user", parts: [{ text: secretPrompt }] }]
       };
     }
-    
-    // 🛡️ [IDS 판별기] - 추가된 부분
+
+    // 🛡️ [IDS 판별기] - 대용량 파일 업로드 로직 적용
     else if (requestBody.type === 'ids') {
       const { historyFiles, targetFiles, textInput } = requestBody.data;
       
       let parts = [{ text: `너는 특허 정보 분석 전문가야. Target 문서(및 텍스트: ${textInput})에서 인용된 선행기술문헌(NPL, 특허문헌 등)을 모두 추출한 뒤, History 문서들에 이미 포함되어 있는지 교차 검증해줘. 반드시 아래 JSON 배열 형식으로만 응답해: [{ "id": "문헌 번호(예: US 10,123,456 B2)", "type": "Patent/NPL", "status": "NEW/ALREADY_FILED", "source": "Target 내 출처 페이지/단락" }]` }];
       
-      // History 파일 조립
+      // 1단계: 구글 서버로 모든 PDF 병렬 고속 업로드
+      const uploadPromises = [];
       if (historyFiles) {
-        historyFiles.forEach(f => {
-          parts.push({ inlineData: { mimeType: f.mimeType, data: f.base64 } });
-          parts.push({ text: `[History 기존 제출 문헌: ${f.name}]` });
-        });
+        historyFiles.forEach(f => uploadPromises.push(uploadToGemini(f, apiKey).then(res => ({ ...res, type: 'history' }))));
       }
-      // Target 파일 조립
       if (targetFiles) {
-        targetFiles.forEach(f => {
-          parts.push({ inlineData: { mimeType: f.mimeType, data: f.base64 } });
-          parts.push({ text: `[Target 신규 분석 대상: ${f.name}]` });
-        });
+        targetFiles.forEach(f => uploadPromises.push(uploadToGemini(f, apiKey).then(res => ({ ...res, type: 'target' }))));
       }
 
+      // 업로드가 모두 끝날 때까지 대기
+      const uploadedFiles = await Promise.all(uploadPromises);
+
+      // 2단계: 발급받은 URI(열쇠)들을 프롬프트 부품(parts)에 조립
+      uploadedFiles.forEach(f => {
+        parts.push({ fileData: { fileUri: f.fileUri, mimeType: f.mimeType } });
+        if (f.type === 'history') {
+          parts.push({ text: `[History 기존 제출 문헌: ${f.name}]` });
+        } else {
+          parts.push({ text: `[Target 신규 분석 대상: ${f.name}]` });
+        }
+      });
+
+      // 최종 프롬프트 패키징
       geminiPayload = {
         contents: [{ role: "user", parts: parts }],
         generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
       };
     }
 
+    // 🚀 구글 제미나이 모델에 최종 질문(프롬프트) 전송
     const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
     const googleResponse = await fetch(googleUrl, {
       method: 'POST',
