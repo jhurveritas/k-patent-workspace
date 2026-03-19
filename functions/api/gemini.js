@@ -43,7 +43,7 @@ export async function onRequest(context) {
       };
     }
     
-    // 🛡️ [의견서 생성기] - '보정서 원문(amendmentContext)' 추가됨
+    // 🛡️ [의견서 생성기]
     else if (requestBody.type === 'draft') {
       const { originalContext, amendmentContext, userDraftResponse, userTemplate } = requestBody.data;
       
@@ -51,6 +51,33 @@ export async function onRequest(context) {
       
       geminiPayload = {
         contents: [{ role: "user", parts: [{ text: secretPrompt }] }]
+      };
+    }
+    
+    // 🛡️ [IDS 판별기] - 추가된 부분
+    else if (requestBody.type === 'ids') {
+      const { historyFiles, targetFiles, textInput } = requestBody.data;
+      
+      let parts = [{ text: `너는 특허 정보 분석 전문가야. Target 문서(및 텍스트: ${textInput})에서 인용된 선행기술문헌(NPL, 특허문헌 등)을 모두 추출한 뒤, History 문서들에 이미 포함되어 있는지 교차 검증해줘. 반드시 아래 JSON 배열 형식으로만 응답해: [{ "id": "문헌 번호(예: US 10,123,456 B2)", "type": "Patent/NPL", "status": "NEW/ALREADY_FILED", "source": "Target 내 출처 페이지/단락" }]` }];
+      
+      // History 파일 조립
+      if (historyFiles) {
+        historyFiles.forEach(f => {
+          parts.push({ inlineData: { mimeType: f.mimeType, data: f.base64 } });
+          parts.push({ text: `[History 기존 제출 문헌: ${f.name}]` });
+        });
+      }
+      // Target 파일 조립
+      if (targetFiles) {
+        targetFiles.forEach(f => {
+          parts.push({ inlineData: { mimeType: f.mimeType, data: f.base64 } });
+          parts.push({ text: `[Target 신규 분석 대상: ${f.name}]` });
+        });
+      }
+
+      geminiPayload = {
+        contents: [{ role: "user", parts: parts }],
+        generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
       };
     }
 
