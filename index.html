@@ -298,17 +298,74 @@ textarea, input {
     let idsState = { historyFiles: [], targetFiles: [] };
     function handleFileSelect(e, type) { idsState[type + 'Files'] = [...idsState[type + 'Files'], ...Array.from(e.target.files)]; document.getElementById(type + 'FileList').innerHTML = idsState[type + 'Files'].map((f, i) => `<li class="flex justify-between p-2 bg-slate-50 border"><span>${f.name}</span><button onclick="idsState['${type}Files'].splice(${i}, 1); document.getElementById('${type}FileList').innerHTML=''" class="text-red-400">✕</button></li>`).join(''); }
     async function runIDSAnalysis() {
-      const btn = document.getElementById('btn-run-ids'); const btnText = document.getElementById('ids-btn-text'); const textInput = document.getElementById('manualRefsText').value.trim();
-      if (!idsState.historyFiles.length) return alert("History PDF 필요"); if (!idsState.targetFiles.length && !textInput) return alert("Target 필요");
-      btn.disabled = true; btnText.innerText = "분석 중...";
+      const btn = document.getElementById('btn-run-ids'); 
+      const btnText = document.getElementById('ids-btn-text'); 
+      const textInput = document.getElementById('manualRefsText').value.trim();
+      
+      if (!idsState.historyFiles.length) return alert("History PDF 필요"); 
+      if (!idsState.targetFiles.length && !textInput) return alert("Target 필요");
+      
+      btn.disabled = true; 
+      btnText.innerText = "AI 교차 분석 중 (최대 1~2분)...";
+      
       try {
         const processFiles = async (files) => Promise.all(files.map(async f => ({ name: f.name, mimeType: f.type, base64: await fileToBase64(f) })));
-        const fullText = await streamFetchGemini('/api/gemini', { type: 'ids', data: { historyFiles: await processFiles(idsState.historyFiles), targetFiles: await processFiles(idsState.targetFiles), textInput } });
-        const resArr = JSON.parse(fullText);
-        document.getElementById('ids-empty-state').classList.add('hidden'); document.getElementById('ids-results-container').classList.remove('hidden');
-        document.getElementById('ids-result-list').innerHTML = resArr.map(res => `<li class="flex justify-between p-4 border-b"><div><b>${res.id}</b><div class="text-xs text-slate-400">${res.source}</div></div><span class="px-2 py-1 text-xs font-bold rounded ${res.status==='NEW' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}">${res.status}</span></li>`).join('');
-        document.getElementById('res-total').innerText = resArr.length; document.getElementById('res-new').innerText = resArr.filter(r => r.status==='NEW').length;
-      } catch (e) { alert("에러:\n" + e.message); } finally { btn.disabled = false; btnText.innerText = "필터링 분석 실행"; }
+        
+        const fullText = await streamFetchGemini('/api/gemini', { 
+          type: 'ids', 
+          data: { 
+            historyFiles: await processFiles(idsState.historyFiles), 
+            targetFiles: await processFiles(idsState.targetFiles), 
+            textInput 
+          } 
+        });
+        
+        // 마크다운 백틱 처리 및 JSON 파싱
+        const cleanJson = fullText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const resArr = JSON.parse(cleanJson);
+        
+        document.getElementById('ids-empty-state').classList.add('hidden'); 
+        document.getElementById('ids-results-container').classList.remove('hidden');
+        
+        // 결과 리스트 렌더링 (UI 개선 및 파일명 표시 추가)
+        document.getElementById('ids-result-list').innerHTML = resArr.map(res => {
+          const isNew = res.status === 'NEW';
+          const statusLabel = isNew ? '신규 인용 (NEW)' : '기존 제출 (FILED)';
+          const statusStyle = isNew ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200';
+          
+          // ALREADY_FILED 상태이면서 historyFile 정보가 있을 때만 파일명 배지를 표시합니다.
+          let historyBadge = '';
+          if (!isNew && res.historyFile && res.historyFile !== 'null') {
+            historyBadge = `
+              <div class="mt-2 text-[11px] font-bold text-indigo-700 bg-indigo-50/80 px-2.5 py-1 rounded-md border border-indigo-100 inline-flex items-center shadow-sm">
+                <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                발견된 파일: ${res.historyFile}
+              </div>`;
+          }
+
+          return `
+            <li class="flex justify-between items-start p-5 border-b hover:bg-slate-50 transition-colors">
+              <div class="flex flex-col max-w-[75%]">
+                <b class="text-slate-900 text-sm font-black">${res.id}</b>
+                <div class="text-xs text-slate-500 mt-1 font-medium">📌 Target 출처: ${res.source || '내용 확인 불가'}</div>
+                ${historyBadge}
+              </div>
+              <span class="px-2.5 py-1 text-[10px] font-black uppercase rounded-lg border ${statusStyle} shadow-sm tracking-wide mt-0.5">
+                ${statusLabel}
+              </span>
+            </li>
+          `;
+        }).join('');
+        
+        document.getElementById('res-total').innerText = resArr.length; 
+        document.getElementById('res-new').innerText = resArr.filter(r => r.status === 'NEW').length;
+        
+      } catch (e) { 
+        alert("🚨 에러 발생:\n" + e.message); 
+      } finally { 
+        btn.disabled = false; 
+        btnText.innerText = "필터링 분석 실행"; 
+      }
     }
     function resetIDS() { idsState = { historyFiles: [], targetFiles: [] }; document.getElementById('manualRefsText').value=''; document.getElementById('historyFileList').innerHTML=''; document.getElementById('targetFileList').innerHTML=''; document.getElementById('ids-empty-state').classList.remove('hidden'); document.getElementById('ids-results-container').classList.add('hidden'); }
 
