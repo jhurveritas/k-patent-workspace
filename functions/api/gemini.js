@@ -156,7 +156,9 @@ export async function onRequest(context) {
       const { targetCountry, originalSpecification, officeAction, pendingClaims, amendedClaims, userDraftResponse } = requestBody.data;
       
       const prompt = `너는 ${targetCountry} 특허법 및 심사실무에 능통한 최고 수준의 특허 명세사야. 
-      아래 제공된 자료들을 바탕으로 심사관의 거절이유를 극복하기 위한 논리의 타당성을 엄격하게 검토하고, 반드시 아래 JSON 형식으로만 응답해줘.
+      아래 제공된 분석 자료들을 바탕으로 아래 지시사항과 같은 분석을 해주고, 반드시 아래 JSON 형식으로만 응답해줘.
+      특히, 미국에서는 MPEP, 35 U.S.C. 101, 102, 103, 112 등을 고려하고, 유럽에서는 MPEP, 35 U.S.C. 101, 102, 103, 112, Intermediate Generalization 등을 고려해줘.
+      그리고, 신규사항 추가 이슈는 중국과 유럽은 가장 엄격하게 봐주고, 미국,일본 및 한국은 지적은 해주되 도면이나 발명의 설명으로부터 도출 가능한 정도라면 괜찮다는 문구를 추가해줘.
       
       [분석 자료]
       - 대상 국가: ${targetCountry}
@@ -164,7 +166,14 @@ export async function onRequest(context) {
       - 계류중 청구항: ${pendingClaims}
       - 보정 후 청구항: ${amendedClaims}
       - 대응 초안(핵심 논리): ${userDraftResponse}
-      
+
+      [지시사항]
+      1. 거절이유 통지서(첨부파일)의 지적 사항과 사용자의 대응 초안을 비교하여 누락된 대응 논리가 있는지 분석하세요.
+      2. 보정 후 청구항과 대응 초안의 주장이 일치하는지 분석하세요.
+      3. 보정 후 청구항에 명확성 결여, 신규사항 추가 등 기재불비 사항이 있는지, 그리고 청구항 간 상충되는 내용이 발생하는지 분석하세요. 
+      (주의: '보정 후 청구항' 란에 보정된 일부 청구항만 기재되어 있는 경우, 기재되지 않은 나머지 청구항은 '현재 계류 중인 청구항'과 동일한 것으로 간주하여 전체 청구항 세트를 기준으로 기재불비 및 청구항 간 상충 여부를 종합적으로 판단하세요.)
+      4. 단, 종속항에 대한 진보성(Inventive Step / Non-obviousness) 판단은 논리 검토 대상에서 제외하세요.
+       
       [요구되는 JSON 응답 포맷 (반드시 지킬 것)]
       {
         "isComplete": boolean (완벽한 방어 논리인지 여부),
