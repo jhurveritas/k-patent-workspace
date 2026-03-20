@@ -55,11 +55,73 @@ export async function onRequest(context) {
     const requestBody = await context.request.json();
     let geminiPayload = requestBody; 
 
-    // 🛡️ [청구항 대조기]
+   // 🛡️ [청구항 대조기] - 완벽한 JSON 스키마 적용
     if (requestBody.type === 'compare') {
       const { krText, enText } = requestBody.data;
-      const secretPrompt = `너는 전문 특허 번역가이자 명세사야. 아래 한국어 특허 청구항 원문과 영문 번역본을 교차 검증해서 다음 항목을 분석해줘:\n\n1. 누락되거나 잘못 번역된 구성요소\n2. 법적 권리 범위의 변동 가능성 (원문과 번역본 간의 괴리)\n3. 특허 용어(Terminology)의 적절성\n4. 종합적인 수정 제안\n\n[한국어 원문]\n${krText}\n\n[영문 번역본]\n${enText}`;
-      geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }], generationConfig: { temperature: 0.1 } };
+      
+      const systemInstruction = `
+        당신은 한국 특허 실무와 글로벌(USPTO/EPO) 특허 표준을 모두 꿰뚫고 있는 세계 최고 수준의 특허 변리사 및 기술 번역 전문가입니다.
+        당신의 임무는 한국어 특허 청구항의 영문 번역본을 분석하여 정확성, 법적 효력, 기술적 일관성을 검증하는 것입니다.
+
+        분석 시 다음 사항에 집중하세요:
+        1. 각 오류나 불일치가 발생하는 '위치'를 정확히 식별하십시오 (예: 전제부(Preamble), 구성요소 1, 특징부, 전이구 등).
+        2. 법적 권리 범위 (Legal Scope): 영문 번역이 원본 한국어 청구항의 범위를 부당하게 넓히거나 좁히지 않았는가?
+        3. 용어의 정확성 (Terminology): 기술 용어가 산업 표준 영문 용어로 정확하게 번역되었는가?
+        4. 구조적 무결성: USPTO/EPO 표준 형식을 따르고 있는가?
+        5. 완전성: 한국어 원문의 모든 한정 사항이 영문에 반영되었는가?
+
+        중요: 
+        - 'discrepancies' 배열 내의 각 항목은 청구항 내의 구체적인 '위치(locationIndicator)'를 포함해야 합니다.
+        - 모든 분석 내용(summary, comment, suggestion, issue)은 한국어로 작성하십시오.
+        - 한국인 전문가가 '어느 부분에서 어떤 문제가 발생했는지' 한눈에 알 수 있도록 위치 식별을 명확히 하십시오.
+      `;
+
+      const promptText = `KOREAN CLAIM (한국어 원문):\n${krText}\n\nENGLISH TRANSLATION (영문 번역본):\n${enText}`;
+
+      geminiPayload = { 
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ role: "user", parts: [{ text: promptText }] }], 
+        generationConfig: { 
+          temperature: 0.1,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              overallScore: { type: "NUMBER" },
+              summary: { type: "STRING" },
+              checks: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    category: { type: "STRING" },
+                    status: { type: "STRING", enum: ["Pass", "Warning", "Fail"] },
+                    comment: { type: "STRING" },
+                    suggestion: { type: "STRING" }
+                  },
+                  required: ["category", "status", "comment"]
+                }
+              },
+              discrepancies: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    locationIndicator: { type: "STRING" },
+                    koreanSegment: { type: "STRING" },
+                    englishSegment: { type: "STRING" },
+                    issue: { type: "STRING" },
+                    severity: { type: "STRING", enum: ["Low", "Medium", "High", "Critical"] },
+                    recommendedFix: { type: "STRING" }
+                  },
+                  required: ["locationIndicator", "koreanSegment", "englishSegment", "issue", "severity", "recommendedFix"]
+                }
+              }
+            },
+            required: ["overallScore", "summary", "checks", "discrepancies"]
+          }
+        } 
+      };
     }
     
     // 🛡️ [의견서 생성기]
