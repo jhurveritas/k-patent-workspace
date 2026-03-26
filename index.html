@@ -334,7 +334,8 @@ textarea, input {
         const processFiles = async (files) => Promise.all(files.map(async f => ({ name: f.name, mimeType: f.type, base64: await fileToBase64(f) })));
         
         // runIDSAnalysis 함수 내부
-const fullText = await streamFetchGemini('/api/gemini', { 
+let chunkCount = 0;
+        const fullText = await streamFetchGemini('/api/gemini', { 
   type: 'ids', 
   data: { 
     historyFiles: await processFiles(idsState.historyFiles), 
@@ -343,9 +344,10 @@ const fullText = await streamFetchGemini('/api/gemini', {
   } 
 }, (textChunk) => {
   // 💡 데이터 조각(Chunk)이 들어올 때마다 버튼 텍스트나 진행 상태 업데이트
-  const btnText = document.getElementById('ids-btn-text');
-  btnText.innerText = "AI 교차 분석 중... (데이터 수신 중 ⏳)";
-});
+  chunkCount++;
+          const dots = ".".repeat((chunkCount % 3) + 1);
+          document.getElementById('ids-btn-text').innerText = `데이터 수신 및 분석 중${dots}`;
+        });
         
         // 마크다운 백틱 처리 및 JSON 파싱
         const cleanJson = fullText.replace(/```json/g, '').replace(/```/g, '').trim();
