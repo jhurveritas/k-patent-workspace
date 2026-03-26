@@ -436,18 +436,36 @@ textarea, input {
     }
     function resetIDS() { idsState = { historyFiles: [], targetFiles: [] }; document.getElementById('manualRefsText').value=''; document.getElementById('historyFileList').innerHTML=''; document.getElementById('targetFileList').innerHTML=''; document.getElementById('ids-empty-state').classList.remove('hidden'); document.getElementById('ids-results-container').classList.add('hidden'); }
 
-    // ================== 대조기 로직 ==================
+   // ================== 대조기 로직 ==================
     function clearCompareInputs() { document.getElementById('kr-claim-input').value = ''; document.getElementById('en-claim-input').value = ''; document.getElementById('compare-result-container').classList.add('hidden'); document.getElementById('compare-result-content').innerHTML = ''; }
+    
     async function runCompare() {
       const krText = document.getElementById('kr-claim-input').value.trim(); const enText = document.getElementById('en-claim-input').value.trim();
       if (!krText || !enText) return alert("양쪽 텍스트를 모두 입력해주세요.");
       const btn = document.getElementById('btn-run-compare'); const resContent = document.getElementById('compare-result-content'); const resContainer = document.getElementById('compare-result-container');
+      
       btn.disabled = true; btn.innerText = "분석 중 (최대 1분)..."; resContainer.classList.remove('hidden');
-      resContent.innerHTML = `<div class="flex flex-col items-center justify-center p-20 opacity-60"><div class="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-6"></div><span class="font-black text-indigo-900 text-xl mb-2">AI 교차 검증 중...</span><span class="text-sm text-slate-500 font-medium">특허 전문가 수준의 권리범위 분석 및 용어 일관성을 검토하고 있습니다.</span></div>`;
+      // 💡 애니메이션 텍스트를 쉽게 바꾸기 위해 id="compare-loading-text" 추가
+      resContent.innerHTML = `<div class="flex flex-col items-center justify-center p-20 opacity-60"><div class="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-6"></div><span id="compare-loading-text" class="font-black text-indigo-900 text-xl mb-2">AI 교차 검증 중...</span><span class="text-sm text-slate-500 font-medium">특허 전문가 수준의 권리범위 분석 및 용어 일관성을 검토하고 있습니다.</span></div>`;
+      
       try { 
-        const fullResponse = await streamFetchGemini('/api/gemini', { type: 'compare', data: { krText, enText } });
-        const cleanJson = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim(); renderCompareResult(JSON.parse(cleanJson));
-      } catch (e) { resContent.innerHTML = `<div class="bg-rose-50 p-6 rounded-2xl border border-rose-200 text-rose-700 text-sm leading-loose whitespace-pre-wrap font-bold shadow-sm">🚨 분석 결과를 처리하는 중 오류가 발생했습니다.<br/><br/>에러 내용: ${e.message}</div>`; } finally { btn.disabled = false; btn.innerText = "교차 검증 실행"; }
+        let chunkCount = 0;
+        // 💡 3번째 인자로 콜백 함수를 넣어 스트리밍 생존 신고 활성화
+        const fullResponse = await streamFetchGemini('/api/gemini', { type: 'compare', data: { krText, enText } }, (textChunk) => {
+          chunkCount++; 
+          const dots = ".".repeat((chunkCount % 3) + 1);
+          btn.innerText = `데이터 수신 및 분석 중${dots}`;
+          const loadingText = document.getElementById('compare-loading-text');
+          if (loadingText) loadingText.innerText = `AI 교차 검증 및 데이터 수신 중${dots}`;
+        });
+        
+        const cleanJson = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim(); 
+        renderCompareResult(JSON.parse(cleanJson));
+      } catch (e) { 
+        resContent.innerHTML = `<div class="bg-rose-50 p-6 rounded-2xl border border-rose-200 text-rose-700 text-sm leading-loose whitespace-pre-wrap font-bold shadow-sm">🚨 분석 결과를 처리하는 중 오류가 발생했습니다.<br/><br/>에러 내용: ${e.message}</div>`; 
+      } finally { 
+        btn.disabled = false; btn.innerText = "교차 검증 실행"; 
+      }
     }
     function renderCompareResult(result) {
       const container = document.getElementById('compare-result-content');
@@ -527,14 +545,33 @@ textarea, input {
 
     function clearOAInputs() { oaState.officeActionFile = null; document.getElementById('oa-original-spec').value = ''; document.getElementById('oa-pending-claims').value = ''; document.getElementById('oa-amended-claims').value = ''; document.getElementById('oa-user-draft').value = ''; document.getElementById('oa-file-name').innerText = 'PDF, Word 파일 선택 또는 여기로 드래그'; document.getElementById('oa-btn-generate').disabled = true; }
 
-    async function runOAReview() {
+   async function runOAReview() {
       const btn = document.getElementById('oa-btn-generate'); const spinner = document.getElementById('oa-loading-spinner'); const errBox = document.getElementById('oa-error-box-2');
       btn.classList.add('hidden'); spinner.classList.remove('hidden'); spinner.classList.add('flex'); errBox.classList.add('hidden');
+      
       try {
         const bodyData = { type: 'oa_review', data: { targetCountry: oaState.country, originalSpecification: document.getElementById('oa-original-spec').value, officeAction: oaState.officeActionFile, pendingClaims: document.getElementById('oa-pending-claims').value, amendedClaims: document.getElementById('oa-amended-claims').value, userDraftResponse: document.getElementById('oa-user-draft').value } };
-        const jsonString = await streamFetchGemini('/api/gemini', bodyData);
-        const cleanJson = jsonString.replace(/```json/g, '').replace(/```/g, '').trim(); renderOAResult(JSON.parse(cleanJson)); goToOAStep(2);
-      } catch (error) { errBox.innerText = `⚠️ 에러 발생: ${error.message}`; errBox.classList.remove('hidden'); } finally { btn.classList.remove('hidden'); spinner.classList.add('hidden'); spinner.classList.remove('flex'); }
+        
+        let chunkCount = 0;
+        // 💡 3번째 인자로 콜백 함수를 넣어 스트리밍 생존 신고 활성화
+        const jsonString = await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
+          chunkCount++;
+          const dots = ".".repeat((chunkCount % 3) + 1);
+          const spinnerText = spinner.querySelector('span');
+          if (spinnerText) spinnerText.innerText = `AI 검토 및 데이터 수신 중${dots}`;
+        });
+        
+        const cleanJson = jsonString.replace(/```json/g, '').replace(/```/g, '').trim(); 
+        renderOAResult(JSON.parse(cleanJson)); 
+        goToOAStep(2);
+      } catch (error) { 
+        errBox.innerText = `⚠️ 에러 발생: ${error.message}`; errBox.classList.remove('hidden'); 
+      } finally { 
+        btn.classList.remove('hidden'); spinner.classList.add('hidden'); spinner.classList.remove('flex'); 
+        // 💡 작업이 끝난 후 스피너 텍스트 원상복구
+        const spinnerText = spinner.querySelector('span');
+        if (spinnerText) spinnerText.innerText = "AI 검토 중 (최대 1~2분)...";
+      }
     }
 
     function renderOAResult(res) {
