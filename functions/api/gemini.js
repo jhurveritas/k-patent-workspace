@@ -131,24 +131,50 @@ export async function onRequest(context) {
       geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }] };
     }
 
-    // 🛡️ [IDS 판별기]
+   // 🛡️ [IDS 판별기]
     else if (requestBody.type === 'ids') {
       const { historyFiles, targetFiles, textInput } = requestBody.data;
-      
-      // 프롬프트에 "historyFile" 항목을 추가하여 어느 파일에서 찾았는지 명시하도록 강제합니다.
-      let parts = [{ text: `너는 특허 정보 분석 전문가야. Target 문서(및 텍스트: ${textInput})에서 인용된 선행기술문헌(NPL, 특허문헌 등)을 모두 추출한 뒤, History 문서들에 이미 포함되어 있는지 교차 검증해줘. 반드시 아래 JSON 배열 형식으로만 응답해: [{ "id": "문헌 번호", "type": "Patent/NPL", "status": "NEW/ALREADY_FILED", "source": "Target 내 출처 페이지", "historyFile": "ALREADY_FILED인 경우 해당 문헌이 발견된 History 파일의 정확한 이름 (NEW인 경우 null)" }]` }];
       
       const uploadPromises = [];
       if (historyFiles) historyFiles.forEach(f => uploadPromises.push(uploadToGemini(f, apiKey).then(res => ({ ...res, type: 'history' }))));
       if (targetFiles) targetFiles.forEach(f => uploadPromises.push(uploadToGemini(f, apiKey).then(res => ({ ...res, type: 'target' }))));
 
       const uploadedFiles = await Promise.all(uploadPromises);
+      
+      let parts = [];
+      
+      // 1. 파일 데이터를 명확한 꼬리표와 함께 먼저 주입 (AI가 파일의 역할을 혼동하지 않도록)
       uploadedFiles.forEach(f => {
+        parts.push({ text: f.type === 'history' ? `\n--- [History (기존 제출 문헌) 파일명: ${f.name}] 시작 ---\n` : `\n--- [Target (신규 인용 문헌) 파일명: ${f.name}] 시작 ---\n` });
         parts.push({ fileData: { fileUri: f.fileUri, mimeType: f.mimeType } });
-        parts.push({ text: f.type === 'history' ? `[History 기존 제출 문헌: ${f.name}]` : `[Target 신규 분석 대상: ${f.name}]` });
+        parts.push({ text: f.type === 'history' ? `\n--- [History 파일명: ${f.name}] 끝 ---\n` : `\n--- [Target 파일명: ${f.name}] 끝 ---\n` });
       });
 
-      geminiPayload = { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } };
+      // 2. 강력한 단계별 지시사항을 '마지막'에 배치 (읽은 내용을 바탕으로 행동하도록 강제)
+      parts.push({ 
+        text: `너는 특허 정보 분석 전문가야. 위 제공된 문서들을 바탕으로 다음 [작업 순서]를 엄격히 준수하여 분석해.
+
+[작업 순서]
+1. 먼저, [Target] 문서들과 사용자가 수동으로 입력한 텍스트("${textInput || '입력 없음'}")만 샅샅이 뒤져서 '새롭게 인용된 선행기술문헌(특허번호 및 NPL)'을 모조리 추출해. (이것이 '기준 목록'이 된다. 절대로 History 문서에서 문헌을 먼저 추출하지 마라.)
+2. 그 다음, 방금 만든 '기준 목록'의 각 문헌들이 [History] 문서들 내용 안에 이미 기재되어 있는지 하나하나 교차 검증(Cross-check)해.
+3. 해당 문헌이 [History] 문서에서 하나라도 발견되었다면 상태를 "ALREADY_FILED"로, 어떤 History 문서에도 없다면 "NEW"로 판별해.
+
+반드시 아래 JSON 배열 형식으로만 응답해 (마크다운 없이 순수 JSON만 출력):
+[
+  {
+    "id": "문헌 번호 (예: US-11223344-B2, JP-2020-12345-A 등)",
+    "type": "Patent" 혹은 "NPL",
+    "status": "NEW" 혹은 "ALREADY_FILED",
+    "source": "해당 문헌을 처음 발견한 Target 문서명 또는 출처 페이지",
+    "historyFile": "ALREADY_FILED인 경우 해당 문헌이 발견된 History 파일의 정확한 이름 (NEW인 경우에는 null)"
+  }
+]` 
+      });
+
+      geminiPayload = { 
+        contents: [{ role: "user", parts: parts }], 
+        generationConfig: { responseMimeType: "application/json", temperature: 0.1 } 
+      };
     }
     
     // 🛡️ [국가별 OA 논리 검토기] (🔥 신규 추가됨)
