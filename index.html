@@ -122,10 +122,21 @@ textarea, input {
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
       <div class="lg:col-span-5 space-y-6">
         <div class="bg-white p-6 rounded-xl border-l-4 border-l-red-400 shadow-sm"><h3 class="font-bold mb-2">1. 기존 제출 내역 (History)</h3>
-          <div class="border-2 border-dashed p-4 text-center cursor-pointer hover:bg-slate-50 transition" onclick="document.getElementById('historyFiles').click()"><input type="file" id="historyFiles" multiple accept=".pdf" class="hidden" onchange="handleFileSelect(event, 'history')"><span class="text-sm">PDF 선택</span></div><ul id="historyFileList" class="mt-3 text-sm"></ul>
+          <div id="dropzone-history" class="border-2 border-dashed border-slate-300 p-6 rounded-xl text-center cursor-pointer hover:bg-slate-50 transition flex flex-col items-center justify-center gap-2" onclick="document.getElementById('historyFiles').click()">
+            <input type="file" id="historyFiles" multiple accept=".pdf,.doc,.docx" class="hidden" onchange="handleFileSelect(event, 'history')">
+            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <span class="text-sm font-bold text-slate-600">PDF, Word 파일 선택 또는 여기로 드래그</span>
+          </div>
+          <ul id="historyFileList" class="mt-3 text-sm"></ul>
         </div>
+        
         <div class="bg-white p-6 rounded-xl border-l-4 border-l-green-500 shadow-sm"><h3 class="font-bold mb-2">2. 신규 인용 문헌 (Target)</h3>
-          <div class="border-2 border-dashed p-4 text-center cursor-pointer mb-3 hover:bg-slate-50 transition" onclick="document.getElementById('targetFiles').click()"><input type="file" id="targetFiles" multiple accept=".pdf" class="hidden" onchange="handleFileSelect(event, 'target')"><span class="text-sm">PDF 선택</span></div><ul id="targetFileList" class="mb-3 text-sm"></ul>
+          <div id="dropzone-target" class="border-2 border-dashed border-slate-300 p-6 rounded-xl text-center cursor-pointer mb-3 hover:bg-slate-50 transition flex flex-col items-center justify-center gap-2" onclick="document.getElementById('targetFiles').click()">
+            <input type="file" id="targetFiles" multiple accept=".pdf,.doc,.docx" class="hidden" onchange="handleFileSelect(event, 'target')">
+            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <span class="text-sm font-bold text-slate-600">PDF, Word 파일 선택 또는 여기로 드래그</span>
+          </div>
+          <ul id="targetFileList" class="mb-3 text-sm"></ul>
           <textarea id="manualRefsText" class="w-full h-24 p-3 border rounded-lg text-sm outline-none focus:border-slate-500" placeholder="수동 텍스트 입력"></textarea>
         </div>
         <button id="btn-run-ids" onclick="runIDSAnalysis()" class="w-full py-4 rounded-xl bg-slate-900 text-white font-bold text-lg hover:bg-slate-800 transition"><span id="ids-btn-text">필터링 분석 실행</span></button>
@@ -186,11 +197,12 @@ textarea, input {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 flex-grow">
           <div class="flex flex-col space-y-6">
             <div class="flex flex-col space-y-3 flex-1"><label id="oa-label-spec" class="text-[11px] font-black text-gray-400">최초명세서 초안(국문)</label><textarea id="oa-original-spec" oninput="checkOAStep1()" class="flex-grow p-4 rounded-2xl border bg-gray-50/30 text-sm" placeholder="최초 명세서 초안을 입력하세요..."></textarea></div>
-            <div class="flex flex-col space-y-3 flex-1">
+              <div class="flex flex-col space-y-3 flex-1">
               <label class="text-[11px] font-black text-gray-400">거절이유 / 통지서 원문 (첨부파일)</label>
-              <div class="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:bg-indigo-50 transition min-h-[120px] flex flex-col items-center justify-center" onclick="document.getElementById('oa-office-action').click()">
-                 <span id="oa-file-name" class="text-sm font-bold text-gray-500">클릭하여 PDF/DOC 업로드</span>
-                 <input type="file" id="oa-office-action" accept=".pdf,.doc,.docx,.txt" class="hidden" onchange="handleOAFileUpload(event)">
+              <div id="dropzone-oa" class="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:bg-indigo-50 transition min-h-[120px] flex flex-col items-center justify-center gap-2" onclick="document.getElementById('oa-office-action').click()">
+                 <svg class="w-7 h-7 text-indigo-300 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                 <span id="oa-file-name" class="text-sm font-bold text-slate-500">PDF, Word 파일 선택 또는 여기로 드래그</span>
+                 <input type="file" id="oa-office-action" accept=".pdf,.doc,.docx" class="hidden" onchange="handleOAFileUpload(event)">
               </div>
             </div>
           </div>
@@ -317,8 +329,70 @@ textarea, input {
     }
 
     // ================== IDS 판별기 로직 ==================
-    let idsState = { historyFiles: [], targetFiles: [] };
-    function handleFileSelect(e, type) { idsState[type + 'Files'] = [...idsState[type + 'Files'], ...Array.from(e.target.files)]; document.getElementById(type + 'FileList').innerHTML = idsState[type + 'Files'].map((f, i) => `<li class="flex justify-between p-2 bg-slate-50 border"><span>${f.name}</span><button onclick="idsState['${type}Files'].splice(${i}, 1); document.getElementById('${type}FileList').innerHTML=''" class="text-red-400">✕</button></li>`).join(''); }
+   // 화면에 파일 목록을 예쁘게 그려주는 함수 (파일 개별 삭제 기능 개선)
+    function renderFileList(type) {
+      document.getElementById(type + 'FileList').innerHTML = idsState[type + 'Files'].map((f, i) => 
+        `<li class="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-lg mt-2 text-sm shadow-sm">
+          <span class="truncate w-[85%] font-medium text-slate-700">${f.name}</span>
+          <button onclick="idsState['${type}Files'].splice(${i}, 1); renderFileList('${type}')" class="text-rose-400 hover:text-rose-600 font-black px-2 transition-colors">✕</button>
+        </li>`
+      ).join('');
+    }
+
+    // 클릭해서 파일을 선택했을 때
+    function handleFileSelect(e, type) {
+      if (e.target.files && e.target.files.length > 0) {
+        idsState[type + 'Files'] = [...idsState[type + 'Files'], ...Array.from(e.target.files)];
+        renderFileList(type);
+      }
+      e.target.value = ''; // 동일한 파일을 지웠다가 다시 올릴 수 있도록 초기화
+    }
+
+    // 💡 드래그 앤 드롭 이벤트 세팅 함수
+    function setupDragAndDrop(zoneId, type) {
+      const dropZone = document.getElementById(zoneId);
+      if(!dropZone) return;
+
+      // 드래그해서 영역에 들어왔을 때 (색상 변화로 피드백)
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropZone.classList.add('bg-indigo-50', 'border-indigo-400');
+      });
+
+      // 드래그해서 영역을 벗어났을 때 (원래 색상으로)
+      dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropZone.classList.remove('bg-indigo-50', 'border-indigo-400');
+      });
+
+      // 파일을 툭 떨어뜨렸을 때
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropZone.classList.remove('bg-indigo-50', 'border-indigo-400');
+        
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          // PDF, DOC, DOCX 파일만 걸러내기
+          const validFiles = Array.from(e.dataTransfer.files).filter(f => {
+            const ext = f.name.toLowerCase();
+            return ext.endsWith('.pdf') || ext.endsWith('.doc') || ext.endsWith('.docx');
+          });
+          
+          if(validFiles.length > 0) {
+            idsState[type + 'Files'] = [...idsState[type + 'Files'], ...validFiles];
+            renderFileList(type);
+          } else {
+            alert('지원하지 않는 파일 형식입니다. (PDF 또는 Word 파일만 가능)');
+          }
+        }
+      });
+    }
+
+    // 문서가 로딩되면 드래그 앤 드롭 기능 활성화
+    window.addEventListener('DOMContentLoaded', () => {
+      setupDragAndDrop('dropzone-history', 'history');
+      setupDragAndDrop('dropzone-target', 'target');
+      setupOADragAndDrop(); // 👈 이 줄을 추가해 주세요!
+    });
     async function runIDSAnalysis() {
       const btn = document.getElementById('btn-run-ids'); 
       const btnText = document.getElementById('ids-btn-text'); 
@@ -649,12 +723,51 @@ let chunkCount = 0;
     function checkOAStep1() { document.getElementById('oa-error-box-1').classList.add('hidden'); }
     function checkOAStep2() { document.getElementById('oa-btn-generate').disabled = !document.getElementById('oa-user-draft').value.trim(); }
 
-    async function handleOAFileUpload(e) {
-      const file = e.target.files[0];
+    // 💡 OA 파일 업로드 (클릭 및 드래그 앤 드롭 통합 처리)
+    async function handleOAFileUpload(e, droppedFile = null) {
+      const file = droppedFile || (e.target.files && e.target.files[0]);
       if (!file) return;
+
+      // 파일 확장자 검사
+      const ext = file.name.toLowerCase();
+      if (!(ext.endsWith('.pdf') || ext.endsWith('.doc') || ext.endsWith('.docx'))) {
+         alert('지원하지 않는 파일 형식입니다. (PDF 또는 Word 파일만 가능)');
+         if (e && e.target) e.target.value = ''; 
+         return;
+      }
+
       oaState.officeActionFile = { name: file.name, mimeType: file.type || 'application/pdf', base64: await fileToBase64(file) };
-      document.getElementById('oa-file-name').innerHTML = `<span class="text-indigo-600">✅ ${file.name} (업로드 됨)</span>`;
+      
+      // 파일 업로드 성공 시 UI 변경
+      document.getElementById('oa-file-name').innerHTML = `<span class="text-indigo-600 font-black">✅ ${file.name} (업로드 됨)</span>`;
       checkOAStep1();
+      
+      if (e && e.target) e.target.value = ''; // 초기화 (같은 파일 다시 올릴 수 있도록)
+    }
+
+    // 💡 OA 드래그 앤 드롭 이벤트 세팅
+    function setupOADragAndDrop() {
+      const dropZone = document.getElementById('dropzone-oa');
+      if(!dropZone) return;
+
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropZone.classList.add('bg-indigo-50', 'border-indigo-400');
+      });
+
+      dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropZone.classList.remove('bg-indigo-50', 'border-indigo-400');
+      });
+
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropZone.classList.remove('bg-indigo-50', 'border-indigo-400');
+        
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleOAFileUpload(null, e.dataTransfer.files[0]); // 드래그된 파일 전달
+        }
+      });
     }
 
     function clearOAInputs() {
