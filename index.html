@@ -267,7 +267,15 @@ textarea, input {
 
     async function streamFetchGemini(url, bodyData, onChunk) {
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyData) });
-      if (!response.ok) throw new Error(await response.text());
+      // 🔥 에러 핸들링 (503 과부하 처리 추가)
+      if (!response.ok) {
+        const errText = await response.text();
+        if (response.status === 503 || errText.includes('503')) {
+            throw new Error("서버에 일시적인 요청이 많아 지연되고 있습니다. 잠시 후 다시 시도해 주세요. 😌 (503)");
+        }
+        throw new Error(errText);
+      }
+      
       const reader = response.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = "";
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
@@ -615,8 +623,11 @@ textarea, input {
     function setOACountry(code) {
       oaState.country = code;
       const btns = document.querySelectorAll('.oa-btn');
+      // 🔥 국가 코드와 버튼 텍스트 내의 고유 식별자 매핑
+      const codeMap = { 'KR': 'KIPO', 'US': 'USPTO', 'EP': 'EPO', 'JP': 'JPO', 'CN': 'CNIPA' };
+      
       btns.forEach(btn => {
-        if (btn.innerText.includes(code)) {
+        if (btn.innerText.includes(codeMap[code])) {
           btn.className = "oa-btn px-5 py-2.5 rounded-xl text-sm font-bold border bg-indigo-600 text-white border-indigo-600 shadow-md";
         } else {
           btn.className = "oa-btn px-5 py-2.5 rounded-xl text-sm font-bold border bg-white text-gray-600 border-gray-200";
