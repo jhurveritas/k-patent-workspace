@@ -143,14 +143,14 @@ export async function onRequest(context) {
       
       let parts = [];
       
-      // 1. 파일 데이터를 명확한 꼬리표와 함께 먼저 주입
+      // 1. 파일 데이터를 명확한 꼬리표와 함께 먼저 주입 (AI가 파일의 역할을 혼동하지 않도록)
       uploadedFiles.forEach(f => {
         parts.push({ text: f.type === 'history' ? `\n--- [History (기존 제출 문헌) 파일명: ${f.name}] 시작 ---\n` : `\n--- [Target (신규 인용 문헌) 파일명: ${f.name}] 시작 ---\n` });
         parts.push({ fileData: { fileUri: f.fileUri, mimeType: f.mimeType } });
         parts.push({ text: f.type === 'history' ? `\n--- [History 파일명: ${f.name}] 끝 ---\n` : `\n--- [Target 파일명: ${f.name}] 끝 ---\n` });
       });
 
-      // 2. 강력한 단계별 지시사항
+      // 2. 강력한 단계별 지시사항을 '마지막'에 배치 (읽은 내용을 바탕으로 행동하도록 강제)
       parts.push({ 
         text: `너는 특허 정보 분석 전문가야. 위 제공된 문서들을 바탕으로 다음 [작업 순서]를 엄격히 준수하여 분석해.
 
@@ -177,7 +177,7 @@ export async function onRequest(context) {
       };
     }
     
-    // 🛡️ [국가별 OA 논리 검토기]
+    // 🛡️ [국가별 OA 논리 검토기] (🔥 신규 추가됨)
     else if (requestBody.type === 'oa_review') {
       const { targetCountry, originalSpecification, officeAction, pendingClaims, amendedClaims, userDraftResponse } = requestBody.data;
       
@@ -210,6 +210,7 @@ export async function onRequest(context) {
 
       let parts = [{ text: prompt }];
 
+      // 거절이유 통지서 PDF/문서가 있다면 업로드 후 프롬프트에 조립
       if (officeAction) {
         const uploadedOA = await uploadToGemini(officeAction, apiKey);
         parts.push({ fileData: { fileUri: uploadedOA.fileUri, mimeType: uploadedOA.mimeType } });
@@ -218,3 +219,19 @@ export async function onRequest(context) {
 
       geminiPayload = { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } };
     }
+
+    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
+    const googleResponse = await fetch(googleUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geminiPayload) 
+    });
+
+    const response = new Response(googleResponse.body, googleResponse);
+    if (isAllowedOrigin) response.headers.set('Access-Control-Allow-Origin', origin);
+    return response;
+
+  } catch (err) {
+    return new Response(JSON.stringify({ error: "백엔드 에러: " + err.message }), { status: 500 });
+  }
+}
