@@ -166,7 +166,7 @@ export async function onRequest(context) {
     "type": "Patent" 혹은 "NPL",
     "status": "NEW" 혹은 "ALREADY_FILED",
     "source": "해당 문헌을 발견한 Target 문서명 또는 출처 페이지",
-    "historyFile": "ALREADY_FILED인 경우 해당 문헌이 발견된 History 파일의 정확한 이름 (NEW인 경우에는 null) (History 파일이 여러개인 경우 해당 파일의 발행 날짜가 빠른 순서대로 모두 표시할 것)"
+    "historyFile": "ALREADY_FILED인 경우 해당 문헌이 발견된 History 파일의 정확한 이름 (NEW인 경우에는 null) (History 파일이 여러개인 경우 해당 파일의 발행 날짜가 빠른 순서대로 1열로 모두 표시할 것)"
   }
 ]` 
       });
