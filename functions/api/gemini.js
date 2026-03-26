@@ -165,8 +165,8 @@ export async function onRequest(context) {
     "id": "문헌 번호 (예: US-11223344-B2, JP-2020-12345-A 등)",
     "type": "Patent" 혹은 "NPL",
     "status": "NEW" 혹은 "ALREADY_FILED",
-    "source": "해당 문헌을 발견한 Target 문서명 또는 출처 페이지 (Target 문서명 또는 출처 페이지가 여러개인 경우에는 모두 표시할 것)",
-    "historyFile": "ALREADY_FILED인 경우 해당 문헌이 발견된 History 파일의 정확한 이름 (NEW인 경우에는 null)"
+    "source": "해당 문헌을 발견한 Target 문서명 또는 출처 페이지",
+    "historyFile": "ALREADY_FILED인 경우 해당 문헌이 발견된 History 파일의 정확한 이름 (NEW인 경우에는 null) (History 파일이 여러개인 경우 모두 표시할 것)"
   }
 ]` 
       });
