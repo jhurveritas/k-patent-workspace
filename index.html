@@ -8,7 +8,31 @@
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
 
+  // 기본 설정
   gtag('config', 'G-TH2YH49R2M');
+
+  // 클라우드플레어 로그인 정보 가져오기
+  fetch('/cdn-cgi/access/get-identity')
+    .then(response => {
+      if(response.ok) return response.json();
+      throw new Error("Cloudflare 인증 정보가 없습니다.");
+    })
+    .then(data => {
+      if (data && data.email) {
+        const userEmail = data.email; // 예: user@iljinpower.co.kr
+        
+        // 1. GA4 시스템에 동일 인물임을 인식시킴 (기기 변경 시에도 추적)
+        gtag('config', 'G-TH2YH49R2M', {
+          'user_id': userEmail 
+        });
+
+        // 2. 앞으로 발생하는 모든 클릭/실행 이벤트에 'user_email' 꼬리표 붙이기
+        gtag('set', {
+          'user_email': userEmail
+        });
+      }
+    })
+    .catch(error => console.log(error));
 </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
