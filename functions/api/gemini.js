@@ -227,9 +227,23 @@ export async function onRequest(context) {
       body: JSON.stringify(geminiPayload) 
     });
 
-    const response = new Response(googleResponse.body, googleResponse);
-    if (isAllowedOrigin) response.headers.set('Access-Control-Allow-Origin', origin);
-    return response;
+    // ✅ 지운 자리에 이 코드를 통째로 넣으세요
+    const responseHeaders = new Headers(googleResponse.headers);
+
+    if (isAllowedOrigin) {
+      responseHeaders.set('Access-Control-Allow-Origin', origin);
+    }
+
+    // 클라우드플레어 버퍼링 강제 해제 (스트리밍 뚫기)
+    responseHeaders.set('Content-Type', 'text/event-stream');
+    responseHeaders.set('Cache-Control', 'no-cache');
+    responseHeaders.set('Connection', 'keep-alive');
+    responseHeaders.set('X-Accel-Buffering', 'no');
+
+    return new Response(googleResponse.body, {
+      status: googleResponse.status,
+      headers: responseHeaders
+    });
 
   } catch (err) {
     return new Response(JSON.stringify({ error: "백엔드 에러: " + err.message }), { status: 500 });
