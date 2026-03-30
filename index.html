@@ -345,26 +345,55 @@ textarea, input {
     function checkDraftStep2() { document.getElementById('btn-generate-draft').disabled = !document.getElementById('userTemplate').value.trim(); }
 
     async function generateDraft() {
-      const btn = document.getElementById('btn-generate-draft'); const spinner = document.getElementById('draft-loading-spinner'); const statusTitle = document.getElementById('draft-status-title'); 
-      btn.classList.add('hidden'); spinner.classList.remove('hidden'); spinner.classList.add('flex');
-      const resultArea = document.getElementById('draftFinalResult'); resultArea.value = ""; 
+      const btn = document.getElementById('btn-generate-draft'); 
+      const spinner = document.getElementById('draft-loading-spinner'); 
+      const statusTitle = document.getElementById('draft-status-title'); 
+      btn.classList.add('hidden'); 
+      spinner.classList.remove('hidden'); 
+      spinner.classList.add('flex');
+      const resultArea = document.getElementById('draftFinalResult'); 
+      resultArea.value = ""; 
       
+      // 🔥 [추가된 부분] '작성 중...' 텍스트 애니메이션 (버퍼링 효과)
+      let dotCount = 0;
+      let isReceiving = false;
+      const loadingTimer = setInterval(() => {
+        if (!isReceiving) {
+          dotCount = (dotCount + 1) % 4;
+          const dots = ".".repeat(dotCount);
+          // 점이 1~3개로 계속 움직이며 최대 소요 시간을 미리 고지합니다.
+          statusTitle.innerText = `AI가 문서를 분석하고 있습니다${dots} ✍️ (최대 1~2분 소요)`;
+        }
+      }, 500); // 0.5초마다 텍스트 업데이트
+
       try {
         const bodyData = { type: 'draft', data: { originalContext: document.getElementById('originalContext').value, amendmentContext: document.getElementById('amendmentContext').value, userDraftResponse: document.getElementById('userDraftResponse').value, userTemplate: document.getElementById('userTemplate').value } };
-        goToDraftStep(2); statusTitle.innerText = "작성 중... ✍️"; 
-        await streamFetchGemini('/api/gemini', bodyData, (textChunk) => { resultArea.value += textChunk; resultArea.scrollTop = resultArea.scrollHeight; });
+        goToDraftStep(2); 
+        
+        await streamFetchGemini('/api/gemini', bodyData, (textChunk) => { 
+          // 🔥 [추가된 부분] 서버에서 첫 글자가 넘어오기 시작하면 애니메이션 종료
+          if (!isReceiving) {
+            isReceiving = true;
+            clearInterval(loadingTimer);
+            statusTitle.innerText = "답변 출력 중... ✍️";
+          }
+          resultArea.value += textChunk; 
+          resultArea.scrollTop = resultArea.scrollHeight; 
+        });
+        
+        clearInterval(loadingTimer); // 혹시 모를 타이머 찌꺼기 제거
         statusTitle.innerText = "작성 완료"; 
 
         // 🟢 GA4 추가 부분: 의견서 생성 성공
         gtag('event', 'feature_execution', { 'feature_name': 'draft', 'status': 'success', 'error_message': 'none' });
 
       } catch (error) { 
+        clearInterval(loadingTimer); // 에러 시에도 타이머 종료
         const currentText = document.getElementById('draftFinalResult').value;
       
         // 이미 받아온 글자가 100자 이상이라면, 단순 네트워크 끊김으로 간주하고 에러 무시!
         if (currentText.length > 100) {
           document.getElementById('draft-status-title').innerText = "작성 완료 (연결 지연으로 일괄 출력됨)";
-          // 성공으로 로깅
           gtag('event', 'feature_execution', { 'feature_name': 'draft', 'status': 'success_with_delay', 'error_message': 'none' });
         } else {
           // 진짜 데이터가 안 들어온 초기 에러일 경우에만 알림창 띄우기
@@ -377,7 +406,7 @@ textarea, input {
         spinner.classList.add('hidden'); 
         spinner.classList.remove('flex'); 
       }
-    } // ✅ 함수가 여기서 정상적으로 닫힙니다.
+    }
     function copyDraft() { navigator.clipboard.writeText(document.getElementById('draftFinalResult').value); alert('클립보드에 복사되었습니다.'); }
 
     // ================== IDS 판별기 로직 (🔥 강력한 파일 처리로 개선) ==================
