@@ -71,8 +71,15 @@ export async function onRequest(context) {
     // 💡 수정 포인트 2: 파일 업로드 및 API 호출을 waitUntil 안으로 모두 집어넣습니다.
     // =========================================================================
     context.waitUntil((async () => {
-      // 💓 이제 파일 업로드를 하는 동안에도 15초마다 심장박동이 클라이언트로 날아갑니다!
-      const keepAlive = setInterval(() => writer.write(encoder.encode(": keepalive\n\n")), 15000);
+      // 🔥 [추가됨] 시작하자마자 버퍼 강제 돌파 (2KB 공백)
+      const prelude = ": " + " ".repeat(2048) + "\n\n";
+      await writer.write(encoder.encode(prelude));
+
+      // 🔥 [변경됨] 조금 더 큰 심장박동 (1KB) & 에러 캐치 추가
+      const keepAlive = setInterval(() => {
+        const padding = ": keepalive " + " ".repeat(1024) + "\n\n";
+        writer.write(encoder.encode(padding)).catch(() => {});
+      }, 15000);
 
       try {
         let geminiPayload = requestBody;
@@ -249,8 +256,8 @@ export async function onRequest(context) {
           body: JSON.stringify(geminiPayload) 
         });
 
-        // 본 요청의 응답이 오기 시작하면 타이머 종료
-        clearInterval(keepAlive);
+        // 🔥 [삭제됨] 본 요청 응답이 오기 시작해도 타이머를 끄지 마세요! 삭제합니다.
+        // clearInterval(keepAlive); <-- 이 줄을 지우세요!
 
         if (!googleResponse.ok) {
           const errText = await googleResponse.text();
@@ -267,11 +274,11 @@ export async function onRequest(context) {
         }
 
       } catch (err) {
-        clearInterval(keepAlive);
-        // 에러 발생 시 프론트엔드가 캐치할 수 있도록 data 포맷으로 에러 전송
         writer.write(encoder.encode(`data: {"error": "백엔드 에러: ${err.message}"}\n\n`));
       } finally {
-        writer.close();
+        // 🔥 [변경됨] 모든 작업이 끝난 여기서 타이머를 끄고 스트림을 닫습니다.
+        clearInterval(keepAlive);
+        writer.close().catch(() => {});
       }
     })());
 
