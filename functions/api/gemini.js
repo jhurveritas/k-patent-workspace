@@ -239,7 +239,7 @@ export async function onRequest(context) {
     responseHeaders.set('X-Accel-Buffering', 'no');
 
     context.waitUntil((async () => {
-      // 💓 15초마다 심장박동을 보내서 524 타임아웃 방어
+      // 💓 15초마다 심장박동을 보내서 524 타임아웃을 완벽 방어합니다.
       const keepAlive = setInterval(() => writer.write(encoder.encode(": keepalive\n\n")), 15000);
       
       try {
@@ -249,13 +249,11 @@ export async function onRequest(context) {
           body: JSON.stringify(geminiPayload) 
         });
         
-        // ❌ 기존: 여기서 바로 타이머를 껐지만 지웠어! (스트림 도중 끊김 방지)
+        clearInterval(keepAlive);
 
         if (!googleResponse.ok) {
           const errText = await googleResponse.text();
-          // 💡 수정: 에러 메시지를 JSON.stringify로 안전하게 포장해서 보냄
-          const errorJson = JSON.stringify({ error: `API 에러: ${errText}` });
-          writer.write(encoder.encode(`data: ${errorJson}\n\n`));
+          writer.write(encoder.encode(`data: {"error": "API 에러: ${errText.replace(/"/g, "'")}"}\n\n`));
           return;
         }
 
@@ -266,16 +264,14 @@ export async function onRequest(context) {
           await writer.write(value);
         }
       } catch (err) {
-        // 💡 수정: 통신 에러도 안전하게 포장
-        const errorJson = JSON.stringify({ error: `통신 에러: ${err.message}` });
-        writer.write(encoder.encode(`data: ${errorJson}\n\n`));
-      } finally {
-        // ✅ 수정: 분석이 완전히 끝났거나 에러가 발생한 후, 가장 마지막에 타이머를 끔!
         clearInterval(keepAlive);
+        writer.write(encoder.encode(`data: {"error": "통신 에러: ${err.message}"}\n\n`));
+      } finally {
         writer.close();
       }
     })());
 
+    // 기다리지 않고 바로 파이프라인을 클라이언트에게 던집니다.
     return new Response(readable, { status: 200, headers: responseHeaders });
 
   } catch (err) {
