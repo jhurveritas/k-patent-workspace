@@ -127,7 +127,7 @@ export async function onRequest(context) {
     // 🛡️ [의견서 생성기]
     else if (requestBody.type === 'draft') {
       const { originalContext, amendmentContext, userDraftResponse, userTemplate } = requestBody.data;
-      const secretPrompt = `너는 KIPO(한국특허청) 양식에 능통한 전문 특허 명세사야. 제공된 템플릿의 문체와 양식을 엄격하게 준수하여 아래 자료를 바탕으로 최종 특허 의견서/보정서를 작성해줘. 여기서, 결과물 출력시 "**"표시는 안나오게 해줘.\n\n[특허청 통지서 원문]\n${originalContext}\n\n[보정서 원문]\n${amendmentContext || '입력되지 않음'}\n\n[대응 초안 (핵심 논리)]\n${userDraftResponse}\n\n[작성 템플릿]\n${userTemplate}`;
+      const secretPrompt = `너는 KIPO(한국특허청) 양식에 능통한 최고 수준의 전문 특허 명세사야. 사용자가 제공한 '[대응 초안 (핵심 논리)]'를 기준으로 하고 제공된 템플릿의 문체와 양식을 엄격하게 준수하여 아래 자료를 바탕으로 최종 특허 의견서/보정서를 작성해줘. 여기서, 결과물 출력시 "**"표시는 안나오게 해줘.\n\n[특허청 통지서 원문]\n${originalContext}\n\n[보정서 원문]\n${amendmentContext || '입력되지 않음'}\n\n[대응 초안 (핵심 논리)]\n${userDraftResponse}\n\n[작성 템플릿]\n${userTemplate}`;
       geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }] };
     }
 
