@@ -220,85 +220,59 @@ export async function onRequest(context) {
       geminiPayload = { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } };
     }
 
-    // ... (위쪽 코드는 그대로 유지. geminiPayload 셋팅 부분까지) ...
+    // ... (위쪽 geminiPayload 세팅하는 부분까지는 기존과 완전히 동일) ...
 
-    const isStreaming = (requestBody.type === 'draft'); // 🔥 의견서 생성기만 스트리밍!
+    // =========================================================================
+    // 🚀 [4개 기능 모두 통합!] 무조건 스트리밍(Keep-alive) 방식으로 전송
+    // =========================================================================
+
+    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
 
     const responseHeaders = new Headers();
     if (isAllowedOrigin) responseHeaders.set('Access-Control-Allow-Origin', origin);
+    responseHeaders.set('Content-Type', 'text/event-stream');
+    responseHeaders.set('Cache-Control', 'no-cache');
+    responseHeaders.set('Connection', 'keep-alive');
+    responseHeaders.set('X-Accel-Buffering', 'no');
 
-    if (isStreaming) {
-      // 🌊 [스트리밍 방식] - 의견서 생성기 전용 (기존 코드 유지)
-      const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
-      const { readable, writable } = new TransformStream();
-      const writer = writable.getWriter();
-      const encoder = new TextEncoder();
+    context.waitUntil((async () => {
+      // 💓 15초마다 심장박동을 보내서 524 타임아웃을 완벽 방어합니다.
+      const keepAlive = setInterval(() => writer.write(encoder.encode(": keepalive\n\n")), 15000);
+      
+      try {
+        const googleResponse = await fetch(googleUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(geminiPayload) 
+        });
+        
+        clearInterval(keepAlive);
 
-      responseHeaders.set('Content-Type', 'text/event-stream');
-      responseHeaders.set('Cache-Control', 'no-cache');
-      responseHeaders.set('Connection', 'keep-alive');
-      responseHeaders.set('X-Accel-Buffering', 'no');
-
-      context.waitUntil((async () => {
-        const keepAlive = setInterval(() => writer.write(encoder.encode(": keepalive\n\n")), 15000);
-        try {
-          const googleResponse = await fetch(googleUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(geminiPayload) 
-          });
-          clearInterval(keepAlive);
-
-          if (!googleResponse.ok) {
-            const errText = await googleResponse.text();
-            writer.write(encoder.encode(`data: {"candidates":[{"content":{"parts":[{"text":"🚨 에러: ${errText.replace(/"/g, "'")}"}]}}]}\n\n`));
-            return;
-          }
-
-          const reader = googleResponse.body.getReader();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            await writer.write(value);
-          }
-        } catch (err) {
-          clearInterval(keepAlive);
-          writer.write(encoder.encode(`data: {"candidates":[{"content":{"parts":[{"text":"🚨 통신 에러: ${err.message}"}]}}]}\n\n`));
-        } finally {
-          writer.close();
+        if (!googleResponse.ok) {
+          const errText = await googleResponse.text();
+          writer.write(encoder.encode(`data: {"error": "API 에러: ${errText.replace(/"/g, "'")}"}\n\n`));
+          return;
         }
-      })());
 
-      return new Response(readable, { status: 200, headers: responseHeaders });
-
-    } else {
-      // 📦 [일괄 응답(JSON) 방식] - IDS, 대조기, OA 검토기 등
-      // 주의: url에 streamGenerateContent 대신 generateContent 사용!
-      const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=${apiKey}`;
-      
-      responseHeaders.set('Content-Type', 'application/json');
-
-      const googleResponse = await fetch(googleUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(geminiPayload) 
-      });
-
-      if (!googleResponse.ok) {
-        const errText = await googleResponse.text();
-        return new Response(JSON.stringify({ error: `API 에러: ${errText}` }), { status: googleResponse.status, headers: responseHeaders });
+        const reader = googleResponse.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          await writer.write(value);
+        }
+      } catch (err) {
+        clearInterval(keepAlive);
+        writer.write(encoder.encode(`data: {"error": "통신 에러: ${err.message}"}\n\n`));
+      } finally {
+        writer.close();
       }
+    })());
 
-      const data = await googleResponse.json();
-      
-      // 제미나이가 준 응답 구조에서 텍스트(JSON 문자열)만 쏙 뽑아냄
-      const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-      // 🚨 제미나이가 가끔 마크다운(```json ... ```)을 붙여주는 경우가 있으므로 제거
-      const cleanJsonText = resultText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-
-      return new Response(cleanJsonText, { status: 200, headers: responseHeaders });
-    }
+    // 기다리지 않고 바로 파이프라인을 클라이언트에게 던집니다.
+    return new Response(readable, { status: 200, headers: responseHeaders });
 
   } catch (err) {
     return new Response(JSON.stringify({ error: "백엔드 메인 에러: " + err.message }), { status: 500 });
