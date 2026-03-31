@@ -1,7 +1,7 @@
 export async function onRequest(context) {
   // 💡 1. 허용할 도메인 목록
   const allowedOrigins = [
-    "https://my-patent-pro.pages.dev", // 실제 도메인으로 변경하세요!
+    "https://k-patent-workspace.pages.dev", // 실제 도메인으로 변경하세요!
     "http://localhost:8788",
     "http://127.0.0.1:8788",
     "http://localhost:5500"
