@@ -312,7 +312,7 @@ textarea, input {
       if(document.getElementById(`${prefix}-ind-line-2`)) document.getElementById(`${prefix}-ind-line-2`).className = step >= 2 ? "absolute top-4 right-0 w-1/2 h-[2px] bg-indigo-200 -z-10 transition-colors" : "absolute top-4 right-0 w-1/2 h-[2px] bg-gray-200 -z-10 transition-colors";
     }
 
-    // 공통 스트리밍 헬퍼 함수
+    // 공통 스트리밍 헬퍼 함수 (Keep-alive 및 에러 핸들링 완벽 대응)
     async function streamFetchGemini(url, bodyData, onChunk) {
       const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyData) });
       if (!response.ok) {
@@ -321,18 +321,51 @@ textarea, input {
         throw new Error(errText);
       }
       
-      const reader = response.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = "";
+      const reader = response.body.getReader(); 
+      const decoder = new TextDecoder("utf-8"); 
+      let fullText = ""; 
+      let buffer = "";
+      
       while (true) {
-        const { done, value } = await reader.read(); if (done) break;
-        buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop(); 
+        const { done, value } = await reader.read(); 
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true }); 
+        const lines = buffer.split('\n'); 
+        buffer = lines.pop(); 
+        
         for (let line of lines) {
           line = line.trim(); 
+          
+          // 💡 백엔드가 15초마다 보내는 ": keepalive"는 이 조건문에 걸러져서 안전하게 무시됩니다.
           if (line.startsWith('data:')) {
-             const dataStr = line.substring(5).trim(); if (dataStr === '[DONE]' || !dataStr) continue;
-             try { const textPart = JSON.parse(dataStr).candidates?.[0]?.content?.parts?.[0]?.text || ""; if (textPart) { fullText += textPart; if (onChunk) onChunk(textPart); } } catch(e) {}
+             const dataStr = line.substring(5).trim(); 
+             if (dataStr === '[DONE]' || !dataStr) continue;
+             
+             try { 
+               const parsed = JSON.parse(dataStr); 
+               
+               // 🚨 백엔드에서 보낸 진짜 에러를 캐치해서 곧바로 화면에 띄워줍니다. (이게 없어서 그동안 JSON 에러가 났던 것입니다)
+               if (parsed.error) {
+                 throw new Error(parsed.error);
+               }
+
+               const textPart = parsed.candidates?.[0]?.content?.parts?.[0]?.text || ""; 
+               if (textPart) { 
+                 fullText += textPart; 
+                 // 의견서 생성기처럼 실시간 타이핑 효과가 필요한 경우에만 onChunk가 작동합니다.
+                 if (onChunk) onChunk(textPart); 
+               } 
+             } catch(e) {
+               // 조각난 JSON 파싱 에러는 무시하고, 백엔드가 던진 진짜 에러(throw new Error)만 살려서 위로 보냅니다.
+               if (e.message !== "Unexpected end of JSON input" && !e.message.includes("JSON") && !e.message.includes("parse")) {
+                 throw e;
+               }
+             }
           }
         }
-      } return fullText;
+      } 
+      return fullText;
     }
 
     // ================== 의견서 생성기 (Draft) 로직 ==================
