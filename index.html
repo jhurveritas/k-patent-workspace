@@ -725,34 +725,72 @@ textarea, input {
     function clearOAInputs() { oaState.officeActionFile = null; document.getElementById('oa-original-spec').value = ''; document.getElementById('oa-pending-claims').value = ''; document.getElementById('oa-amended-claims').value = ''; document.getElementById('oa-user-draft').value = ''; document.getElementById('oa-file-name').innerText = 'PDF, Word 파일 선택 또는 여기로 드래그'; document.getElementById('oa-btn-generate').disabled = true; }
 
    async function runOAReview() {
-      const btn = document.getElementById('oa-btn-generate'); const spinner = document.getElementById('oa-loading-spinner'); const errBox = document.getElementById('oa-error-box-2');
-      btn.classList.add('hidden'); spinner.classList.remove('hidden'); spinner.classList.add('flex'); errBox.classList.add('hidden');
+      const btn = document.getElementById('oa-btn-generate'); 
+      const spinner = document.getElementById('oa-loading-spinner'); 
+      const errBox = document.getElementById('oa-error-box-2');
+      
+      btn.classList.add('hidden'); 
+      spinner.classList.remove('hidden'); 
+      spinner.classList.add('flex'); 
+      errBox.classList.add('hidden');
       
       try {
-        const bodyData = { type: 'oa_review', data: { targetCountry: oaState.country, originalSpecification: document.getElementById('oa-original-spec').value, officeAction: oaState.officeActionFile, pendingClaims: document.getElementById('oa-pending-claims').value, amendedClaims: document.getElementById('oa-amended-claims').value, userDraftResponse: document.getElementById('oa-user-draft').value } };
+        const bodyData = { 
+            type: 'oa_review', 
+            data: { 
+                targetCountry: oaState.country, 
+                originalSpecification: document.getElementById('oa-original-spec').value, 
+                officeAction: oaState.officeActionFile, 
+                pendingClaims: document.getElementById('oa-pending-claims').value, 
+                amendedClaims: document.getElementById('oa-amended-claims').value, 
+                userDraftResponse: document.getElementById('oa-user-draft').value 
+            } 
+        };
         
         let chunkCount = 0;
-        const jsonString = await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
+        const fullText = await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
           chunkCount++;
           const dots = ".".repeat((chunkCount % 3) + 1);
           const spinnerText = spinner.querySelector('span');
           if (spinnerText) spinnerText.innerText = `AI 검토 및 데이터 수신 중${dots}`;
         });
         
-        const cleanJson = jsonString.replace(/```json/g, '').replace(/```/g, '').trim(); 
-        renderOAResult(JSON.parse(cleanJson)); 
+        // 🛡️ [방어 1] 데이터가 아예 비어있는지 확인 (안전 필터 등에 걸렸을 때)
+        if (!fullText || fullText.trim() === "") {
+            throw new Error("AI가 응답을 반환하지 않았습니다. (안전 필터에 걸렸거나 일시적인 오류일 수 있습니다.)");
+        }
+
+        // 🛡️ [방어 2] 불순물 제거하고 순수 JSON 객체('{ ... }')만 추출
+        const jsonMatch = fullText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error("AI가 유효한 JSON 형식을 반환하지 않았습니다.\n\n[수신된 원문]\n" + fullText.substring(0, 300) + "...");
+        }
+        
+        const cleanJson = jsonMatch[0];
+        let resObj;
+        
+        // 🛡️ [방어 3] 쓰다가 짤린 경우 파싱 에러 캐치 후 원문 강제 표시
+        try {
+            resObj = JSON.parse(cleanJson);
+        } catch (parseErr) {
+            throw new Error("분석 내용이 너무 길어 중간에 잘렸습니다. 아래는 AI가 분석하다 멈춘 내용입니다.\n\n[분석된 원문 데이터]\n" + cleanJson);
+        }
+        
+        renderOAResult(resObj); 
         goToOAStep(2);
 
-        // 🟢 GA4 추가 부분: OA 검토 성공
         gtag('event', 'feature_execution', { 'feature_name': 'oa_review', 'status': 'success', 'error_message': 'none' });
 
       } catch (error) { 
-        // 🟢 GA4 추가 부분: OA 검토 에러
         gtag('event', 'feature_execution', { 'feature_name': 'oa_review', 'status': 'error', 'error_message': error.message });
         
-        errBox.innerText = `⚠️ 에러 발생: ${error.message}`; errBox.classList.remove('hidden'); 
+        // 🚨 에러 박스에 내용 상세하게 띄우기 (스크롤 가능하도록 처리)
+        errBox.innerHTML = `<div class="max-h-64 overflow-y-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">⚠️ 오류 발생:<br/><br/>${error.message}</div>`; 
+        errBox.classList.remove('hidden'); 
       } finally { 
-        btn.classList.remove('hidden'); spinner.classList.add('hidden'); spinner.classList.remove('flex'); 
+        btn.classList.remove('hidden'); 
+        spinner.classList.add('hidden'); 
+        spinner.classList.remove('flex'); 
         const spinnerText = spinner.querySelector('span');
         if (spinnerText) spinnerText.innerText = "AI 검토 중 (최대 1~2분)...";
       }
