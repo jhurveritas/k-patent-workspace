@@ -529,9 +529,40 @@ textarea, input {
         const cleanJson = fullText.replace(/```json/g, '').replace(/```/g, '').trim();
         const resArr = JSON.parse(cleanJson);
         
-        // ... (중간 생략: HTML 렌더링 로직) ...
+       // 1. '분석 대기 중' 화면을 숨기고 '결과 리스트' 화면을 보여줍니다.
+        document.getElementById('ids-empty-state').classList.add('hidden');
+        document.getElementById('ids-results-container').classList.remove('hidden');
+
+        // 2. 제미나이가 준 배열(resArr)을 돌면서 HTML 리스트(<li>)로 만듭니다.
+        const listElement = document.getElementById('ids-result-list');
+        listElement.innerHTML = resArr.map(item => {
+          const isNew = item.status === "NEW";
+          return `
+            <li class="p-3 hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <div class="font-bold text-sm text-slate-800 flex items-center gap-2">
+                    ${item.id} <span class="text-[10px] text-slate-400 border border-slate-200 px-1.5 py-0.5 rounded uppercase">${item.type}</span>
+                  </div>
+                  <div class="text-[11px] text-slate-500 mt-1.5">🔍 발견된 출처(Target): <span class="font-medium">${item.source}</span></div>
+                  ${!isNew ? `<div class="text-[11px] text-rose-500 mt-0.5">📍 중복 문헌(History): <span class="font-bold">${item.historyFile}</span></div>` : ''}
+                </div>
+                <div class="ml-3 mt-1">
+                  ${isNew
+                    ? `<span class="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest shadow-sm">NEW</span>`
+                    : `<span class="bg-slate-100 text-slate-500 px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest shadow-sm">FILED</span>`}
+                </div>
+              </div>
+            </li>
+          `;
+        }).join('');
         
-        document.getElementById('res-total').innerText = resArr.length; document.getElementById('res-new').innerText = resArr.filter(r => r.status === 'NEW').length;
+        // ====================================================================
+        // 🚀 추가된 HTML 렌더링 로직 (여기까지)
+        // ====================================================================
+
+        document.getElementById('res-total').innerText = resArr.length; 
+        document.getElementById('res-new').innerText = resArr.filter(r => r.status === 'NEW').length;
 
         // 🟢 GA4 추가 부분: IDS 판별 성공
         gtag('event', 'feature_execution', { 'feature_name': 'ids', 'status': 'success', 'error_message': 'none' });
