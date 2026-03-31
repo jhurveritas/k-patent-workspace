@@ -53,8 +53,29 @@ export async function onRequest(context) {
     if (!apiKey) return new Response(JSON.stringify({ error: "API 키 없음" }), { status: 400 });
 
     const requestBody = await context.request.json();
-    let geminiPayload = requestBody; 
+   // =========================================================================
+    // 💡 수정 포인트 1: 스트림 파이프라인을 가장 먼저 생성합니다!
+    // =========================================================================
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
 
+    const responseHeaders = new Headers();
+    if (allowedOrigins.includes(origin)) responseHeaders.set('Access-Control-Allow-Origin', origin);
+    responseHeaders.set('Content-Type', 'text/event-stream');
+    responseHeaders.set('Cache-Control', 'no-cache');
+    responseHeaders.set('Connection', 'keep-alive');
+    responseHeaders.set('X-Accel-Buffering', 'no');
+
+    // =========================================================================
+    // 💡 수정 포인트 2: 파일 업로드 및 API 호출을 waitUntil 안으로 모두 집어넣습니다.
+    // =========================================================================
+    context.waitUntil((async () => {
+      // 💓 이제 파일 업로드를 하는 동안에도 15초마다 심장박동이 클라이언트로 날아갑니다!
+      const keepAlive = setInterval(() => writer.write(encoder.encode(": keepalive\n\n")), 15000);
+
+      try {
+        let geminiPayload = requestBody;
    // 🛡️ [청구항 대조기] - 완벽한 JSON 스키마 적용
     if (requestBody.type === 'compare') {
       const { krText, enText } = requestBody.data;
@@ -220,35 +241,15 @@ export async function onRequest(context) {
       geminiPayload = { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } };
     }
 
-    // ... (위쪽 geminiPayload 세팅하는 부분까지는 기존과 완전히 동일) ...
-
-    // =========================================================================
-    // 🚀 [4개 기능 모두 통합!] 무조건 스트리밍(Keep-alive) 방식으로 전송
-    // =========================================================================
-
-    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
-    const { readable, writable } = new TransformStream();
-    const writer = writable.getWriter();
-    const encoder = new TextEncoder();
-
-    const responseHeaders = new Headers();
-    if (isAllowedOrigin) responseHeaders.set('Access-Control-Allow-Origin', origin);
-    responseHeaders.set('Content-Type', 'text/event-stream');
-    responseHeaders.set('Cache-Control', 'no-cache');
-    responseHeaders.set('Connection', 'keep-alive');
-    responseHeaders.set('X-Accel-Buffering', 'no');
-
-    context.waitUntil((async () => {
-      // 💓 15초마다 심장박동을 보내서 524 타임아웃을 완벽 방어합니다.
-      const keepAlive = setInterval(() => writer.write(encoder.encode(": keepalive\n\n")), 15000);
-      
-      try {
+    // 🚀 Gemini 본 요청
+        const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
         const googleResponse = await fetch(googleUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(geminiPayload) 
         });
-        
+
+        // 본 요청의 응답이 오기 시작하면 타이머 종료
         clearInterval(keepAlive);
 
         if (!googleResponse.ok) {
@@ -257,24 +258,30 @@ export async function onRequest(context) {
           return;
         }
 
+        // 스트림 파이핑
         const reader = googleResponse.body.getReader();
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           await writer.write(value);
         }
+
       } catch (err) {
         clearInterval(keepAlive);
-        writer.write(encoder.encode(`data: {"error": "통신 에러: ${err.message}"}\n\n`));
+        // 에러 발생 시 프론트엔드가 캐치할 수 있도록 data 포맷으로 에러 전송
+        writer.write(encoder.encode(`data: {"error": "백엔드 에러: ${err.message}"}\n\n`));
       } finally {
         writer.close();
       }
     })());
 
-    // 기다리지 않고 바로 파이프라인을 클라이언트에게 던집니다.
+    // =========================================================================
+    // 💡 수정 포인트 3: 백그라운드 작업이 끝나길 기다리지 않고 즉시 응답 반환!
+    // 이렇게 하면 Cloudflare는 즉각 HTTP 200 OK를 받고 100초 타이머를 리셋합니다.
+    // =========================================================================
     return new Response(readable, { status: 200, headers: responseHeaders });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: "백엔드 메인 에러: " + err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "초기화 에러: " + err.message }), { status: 500 });
   }
 }
