@@ -246,16 +246,31 @@ export async function onRequest(context) {
 
           // 🚀 구글 제미나이 본 요청 시작
           const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
-          const googleResponse = await fetch(googleUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(geminiPayload) 
-          });
+          let googleResponse;
+          const maxRetries = 2; // 최대 2번 더 재시도 (총 3번 호출)
+          
+          for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            googleResponse = await fetch(googleUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(geminiPayload) 
+            });
 
-         if (!googleResponse.ok) {
+            // 503(과부하) 에러가 아니거나, 요청이 성공했다면 루프 탈출
+            if (googleResponse.ok || googleResponse.status !== 503) {
+              break;
+            }
+
+            // 503 에러이고 아직 재시도 기회가 남았다면 2초 대기 후 다시 찌르기
+            if (attempt < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+
+          if (!googleResponse.ok) {
             const errText = await googleResponse.text();
-            // 🔥 [수정된 부분] 에러 메시지를 JSON.stringify로 감싸서 절대 깨지지 않도록 방어합니다!
-            const safeErrorMsg = JSON.stringify(`API 에러: ${errText}`);
+            // 에러 메시지를 JSON.stringify로 감싸서 안전하게 전송
+            const safeErrorMsg = JSON.stringify(`API 에러 (${googleResponse.status}): ${errText}`);
             controller.enqueue(encoder.encode(`data: {"error": ${safeErrorMsg}}\n\n`));
             clearInterval(keepAlive);
             try { controller.close(); } catch(e) {}
