@@ -252,11 +252,13 @@ export async function onRequest(context) {
             body: JSON.stringify(geminiPayload) 
           });
 
-          if (!googleResponse.ok) {
+         if (!googleResponse.ok) {
             const errText = await googleResponse.text();
-            controller.enqueue(encoder.encode(`data: {"error": "API 에러: ${errText.replace(/"/g, "'")}"}\n\n`));
+            // 🔥 [수정된 부분] 에러 메시지를 JSON.stringify로 감싸서 절대 깨지지 않도록 방어합니다!
+            const safeErrorMsg = JSON.stringify(`API 에러: ${errText}`);
+            controller.enqueue(encoder.encode(`data: {"error": ${safeErrorMsg}}\n\n`));
             clearInterval(keepAlive);
-            controller.close();
+            try { controller.close(); } catch(e) {}
             return;
           }
 
@@ -269,7 +271,9 @@ export async function onRequest(context) {
           }
 
         } catch (err) {
-          controller.enqueue(encoder.encode(`data: {"error": "백엔드 에러: ${err.message}"}\n\n`));
+          // 🔥 [수정된 부분] 백엔드 자체 에러도 안전하게 포장합니다!
+          const safeErrorMsg = JSON.stringify(`백엔드 에러: ${err.message}`);
+          controller.enqueue(encoder.encode(`data: {"error": ${safeErrorMsg}}\n\n`));
         } finally {
           clearInterval(keepAlive);
           try { controller.close(); } catch (e) {}
