@@ -8,9 +8,6 @@
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
 
-  // 기본 설정
-  gtag('config', 'G-TH2YH49R2M');
-
   // 클라우드플레어 로그인 정보 가져오기
   fetch('/cdn-cgi/access/get-identity')
     .then(response => {
@@ -19,22 +16,23 @@
     })
     .then(data => {
       if (data && data.email) {
-        // 🚨 수정된 부분: 이메일 주소에서 '@' 앞의 아이디만 추출합니다.
-        // (예: user@iljinpower.co.kr -> 'user' 만 남김)
         const safeUserId = data.email.split('@')[0]; 
         
-        // 1. GA4 시스템에 동일 인물임을 인식시킴 (이메일 원본 대신 추출한 아이디 사용)
+        // 1. user_id를 포함하여 초기 config 및 페이지뷰 전송
         gtag('config', 'G-TH2YH49R2M', {
-          'user_id': safeUserId 
+          'user_id': safeUserId,
+          'user_email': safeUserId // 커스텀 측정기준용
         });
-
-        // 2. 앞으로 발생하는 모든 클릭/실행 이벤트에 꼬리표 붙이기
-        gtag('set', {
-          'user_email': safeUserId // 이름은 user_email로 두더라도 값은 safeUserId가 들어갑니다.
-        });
+      } else {
+        // 이메일 정보가 없을 경우 익명으로 페이지뷰 전송
+        gtag('config', 'G-TH2YH49R2M');
       }
     })
-    .catch(error => console.log(error));
+    .catch(error => {
+      console.log(error);
+      // API 호출 실패 시 익명으로라도 페이지뷰 전송
+      gtag('config', 'G-TH2YH49R2M');
+    });
 </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
