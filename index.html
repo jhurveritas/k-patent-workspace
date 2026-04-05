@@ -40,6 +40,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <style>
     textarea::-webkit-scrollbar { width: 8px; }
     textarea::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
@@ -235,8 +236,14 @@ textarea, input {
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 flex-grow">
-          <div class="flex flex-col space-y-6">
-            <div class="flex flex-col space-y-3 flex-1"><label id="oa-label-spec" class="text-[11px] font-black text-gray-400">최초명세서 초안(국문)</label><textarea id="oa-original-spec" oninput="checkOAStep1()" class="flex-grow p-4 rounded-2xl border bg-gray-50/30 text-sm" placeholder="최초 명세서 초안을 입력하세요..."></textarea></div>
+          <div class="flex flex-col space-y-3 flex-1 h-full">
+  <div class="flex justify-between items-center">
+    <label id="oa-label-spec" class="text-[11px] font-black text-gray-400">최초명세서 초안(국문)</label>
+    <button onclick="document.getElementById('oa-spec-file').click()" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold hover:bg-indigo-100 transition-colors shadow-sm">Word / HLZ 첨부</button>
+    <input type="file" id="oa-spec-file" accept=".docx,.hlz" class="hidden" onchange="extractTextForOASpec(event)">
+  </div>
+  <textarea id="oa-original-spec" oninput="checkOAStep1()" class="flex-grow p-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none" placeholder="최초 명세서 초안을 직접 입력하시거나, Word(.docx) 또는 HLZ 파일을 이곳에 드래그 앤 드롭(또는 첨부) 해주세요."></textarea>
+</div>
               <div class="flex flex-col space-y-3 flex-1">
               <label class="text-[11px] font-black text-gray-400">거절이유 / 통지서 원문 (첨부파일)</label>
               <div id="dropzone-oa" class="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:bg-indigo-50 transition min-h-[120px] flex flex-col items-center justify-center gap-2" onclick="document.getElementById('oa-office-action').click()">
@@ -463,6 +470,64 @@ textarea, input {
         e.target.value = ''; // 다음 업로드를 위해 파일 입력창 초기화
       }
     } 
+
+// 👇 추가: OA 검토기의 최초명세서(Word, HLZ) 텍스트 추출 로직
+    async function extractTextForOASpec(e) {
+      // 드래그 앤 드롭으로 들어왔거나, 버튼 클릭으로 들어온 파일 객체 가져오기
+      const file = (e.dataTransfer && e.dataTransfer.files[0]) || (e.target && e.target.files[0]);
+      if (!file) return;
+
+      const textarea = document.getElementById('oa-original-spec');
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      textarea.disabled = true;
+
+      try {
+        if (ext === 'docx') {
+          // 💡 Word(.docx) 파일 추출
+          textarea.value = "⏳ Word 파일 텍스트 추출 중...";
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+          textarea.value = result.value.trim() || "문서에 텍스트가 없습니다.";
+
+        } else if (ext === 'hlz') {
+          // 💡 HLZ 파일 추출 (기존에 성공했던 인코딩 복원 로직 그대로 적용)
+          textarea.value = "⏳ HLZ 압축 해제 및 XML 추출 중...";
+          const arrayBuffer = await file.arrayBuffer();
+          const hlzZip = await JSZip.loadAsync(arrayBuffer);
+          
+          let extractedText = "";
+          const decodeText = async (zipObj, path) => {
+            const uint8array = await zipObj.files[path].async("uint8array");
+            let text = new TextDecoder('utf-8').decode(uint8array);
+            if (text.includes('') || text.toLowerCase().includes('encoding="euc-kr"')) {
+              text = new TextDecoder('euc-kr').decode(uint8array);
+            }
+            return text;
+          };
+
+          for (const innerPath in hlzZip.files) {
+            if (innerPath.toLowerCase().endsWith('.xml')) {
+              extractedText = await decodeText(hlzZip, innerPath);
+              break;
+            }
+          }
+          textarea.value = extractedText ? extractedText.trim() : "HLZ 안에 XML 파일이 없습니다.";
+          
+        } else {
+          alert("지원하지 않는 파일 형식입니다.\nWord(.docx) 또는 HLZ 파일만 가능합니다.");
+          textarea.value = "";
+        }
+      } catch (error) {
+        textarea.value = "추출 실패";
+        alert("🚨 파일 추출 중 오류가 발생했습니다.\n" + error.message);
+      } finally {
+        textarea.disabled = false;
+        checkOAStep1(); // 텍스트가 채워졌으니 다음 버튼 활성화 여부 체크
+        if (e.target && e.target.value !== undefined) e.target.value = ''; // 입력창 초기화
+      }
+    }
+
   
     // ================== 공통 탭 스위칭 ==================
     function switchTab(tab) { 
