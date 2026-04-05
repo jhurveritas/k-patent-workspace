@@ -474,7 +474,7 @@ textarea, input {
       }
     } 
 
-// 👇 추가: OA 검토기의 최초명세서(Word, HLZ) 텍스트 추출 로직
+// 👇 수정: OA 검토기의 최초명세서(Word, HLZ) 텍스트 추출 로직 (불필요한 인코딩 로직 완전 제거)
     async function extractTextForOASpec(e) {
       // 드래그 앤 드롭으로 들어왔거나, 버튼 클릭으로 들어온 파일 객체 가져오기
       const file = (e.dataTransfer && e.dataTransfer.files[0]) || (e.target && e.target.files[0]);
@@ -494,24 +494,19 @@ textarea, input {
           textarea.value = result.value.trim() || "문서에 텍스트가 없습니다.";
 
         } else if (ext === 'hlz') {
-          // 💡 HLZ 파일 추출 (기존에 성공했던 인코딩 복원 로직 그대로 적용)
+          // 💡 HLZ 파일 추출 (가장 단순하고 확실한 순수 string 추출 방식)
           textarea.value = "⏳ HLZ 압축 해제 및 XML 추출 중...";
           const arrayBuffer = await file.arrayBuffer();
+          
+          // HLZ 자체를 ZIP으로 엽니다.
           const hlzZip = await JSZip.loadAsync(arrayBuffer);
           
           let extractedText = "";
-          const decodeText = async (zipObj, path) => {
-            const uint8array = await zipObj.files[path].async("uint8array");
-            let text = new TextDecoder('utf-8').decode(uint8array);
-            if (text.includes('') || text.toLowerCase().includes('encoding="euc-kr"')) {
-              text = new TextDecoder('euc-kr').decode(uint8array);
-            }
-            return text;
-          };
-
+          
           for (const innerPath in hlzZip.files) {
             if (innerPath.toLowerCase().endsWith('.xml')) {
-              extractedText = await decodeText(hlzZip, innerPath);
+              // 🚨 쓸데없는 인코딩 판별 로직(TextDecoder) 전면 삭제! JSZip의 기본 추출만 사용합니다.
+              extractedText = await hlzZip.files[innerPath].async("string");
               break;
             }
           }
