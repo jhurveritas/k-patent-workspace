@@ -155,7 +155,7 @@ export async function onRequest(context) {
           // 🛡️ [의견서 생성기]
           else if (requestBody.type === 'draft') {
             const { originalContext, amendmentContext, userDraftResponse, userTemplate } = requestBody.data;
-            const secretPrompt = `너는 KIPO(한국특허청) 양식에 능통한 최고 수준의 전문 특허 명세사야. 사용자가 제공한 대응초안을 기초로 해서 제공된 템플릿의 문체와 양식을 엄격하게 준수하여 아래 자료를 바탕으로 최종 특허 의견서/보정서를 작성해줘. 여기서, 결과물 출력시 "**"표시는 안나오게 해줘.\n\n[특허청 통지서 원문]\n${originalContext}\n\n[보정서 원문]\n${amendmentContext || '입력되지 않음'}\n\n[대응 초안 (핵심 논리)]\n${userDraftResponse}\n\n[작성 템플릿]\n${userTemplate}\n\n[🚨시스템 긴급 지시사항🚨]\n네트워크 타임아웃을 방지하기 위해, 글의 전체 구조를 다 생각할 때까지 기다리지 마. 무조건 "✍️ 제공된 문헌을 바탕으로 의견서 초안 작성을 시작합니다...\n\n" 라는 문장을 0.1초 만에 최우선으로 즉시 출력해. 이 문장을 먼저 뱉고 난 후에 본문 작성을 이어가.`;
+            const secretPrompt = `너는 KIPO(한국특허청) 양식에 능통한 최고 수준의 전문 특허 명세사야. 제공된 템플릿의 문체와 양식을 엄격하게 준수하여 아래 자료를 바탕으로 최종 특허 의견서/보정서를 작성해줘. 여기서, 사용자가 제공한 대응논리는 최대한 누락하지 않게 반영하고 결과물 출력시 "**"표시는 안나오게 해줘.\n\n[특허청 통지서 원문]\n${originalContext}\n\n[보정서 원문]\n${amendmentContext || '입력되지 않음'}\n\n[대응 초안 (핵심 논리)]\n${userDraftResponse}\n\n[작성 템플릿]\n${userTemplate}\n\n[🚨시스템 긴급 지시사항🚨]\n네트워크 타임아웃을 방지하기 위해, 글의 전체 구조를 다 생각할 때까지 기다리지 마. 무조건 "✍️ 제공된 문헌을 바탕으로 의견서 초안 작성을 시작합니다...\n\n" 라는 문장을 0.1초 만에 최우선으로 즉시 출력해. 이 문장을 먼저 뱉고 난 후에 본문 작성을 이어가.`;
             geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }] };
           }
 
