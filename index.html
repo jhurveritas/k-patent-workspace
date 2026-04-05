@@ -355,7 +355,7 @@ textarea, input {
       e.target.value = ''; // 파일 입력창 초기화
     }
 
-// 👇 추가: FIN 파일 이중 압축 해제 및 텍스트 자동 분류 로직
+// 👇 수정됨: FIN 파일 이중 압축 해제 및 특허청 한글 인코딩(EUC-KR) 완벽 대응
     async function extractTextFromFIN(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -363,8 +363,8 @@ textarea, input {
       const preTextarea = document.getElementById('preAmendmentContext');
       const amendTextarea = document.getElementById('amendmentContext');
 
-      preTextarea.value = "⏳ FIN 파일 분석 중 (HLZ 추출)...";
-      amendTextarea.value = "⏳ FIN 파일 분석 중 (DTA 이중 추출)...";
+      preTextarea.value = "⏳ FIN 파일 분석 중 (HLZ 이중 추출 중)...";
+      amendTextarea.value = "⏳ FIN 파일 분석 중 (DTA 이중 추출 중)...";
       preTextarea.disabled = true; amendTextarea.disabled = true;
 
       try {
@@ -373,30 +373,59 @@ textarea, input {
         const zip = await JSZip.loadAsync(arrayBuffer);
         let hlzFound = false; let dtaFound = false;
 
+        // 💡 텍스트 디코딩 헬퍼 함수 (EUC-KR / UTF-8 자동 판별)
+        const decodeText = async (zipObj, path) => {
+          const uint8array = await zipObj.files[path].async("uint8array");
+          let text = new TextDecoder('utf-8').decode(uint8array);
+          // 특허청 XML에 EUC-KR 선언이 있거나 한글이 깨지는 패턴일 경우 EUC-KR로 재디코딩
+          if (text.toLowerCase().includes('encoding="euc-kr"') || text.includes('')) {
+            text = new TextDecoder('euc-kr').decode(uint8array);
+          }
+          return text;
+        };
+
         for (const relativePath in zip.files) {
           const zipEntry = zip.files[relativePath];
           
-          // 2. HLZ 파일 찾기 ➔ 텍스트로 바로 읽어서 보정 전 명세서에 넣기
+          // 2. HLZ 파일 찾기 ➔ DTA처럼 다시 ZIP으로 열어서 내부 XML 추출
           if (relativePath.toLowerCase().endsWith('.hlz')) {
             hlzFound = true;
-            const hlzText = await zipEntry.async("string");
-            preTextarea.value = hlzText.trim() || "HLZ 파일에 텍스트 내용이 없습니다.";
+            const hlzBuffer = await zipEntry.async("arraybuffer");
+            try {
+              const hlzZip = await JSZip.loadAsync(hlzBuffer); // 이중 압축 해제
+              let innerText = "";
+              for (const innerPath in hlzZip.files) {
+                if (innerPath.toLowerCase().endsWith('.xml') || innerPath.toLowerCase().endsWith('.txt')) {
+                  innerText = await decodeText(hlzZip, innerPath);
+                  break;
+                }
+              }
+              preTextarea.value = innerText.trim() || "HLZ 파일 내에 XML/TXT가 없습니다.";
+            } catch (err) {
+              // 압축 파일이 아닌 경우를 대비한 안전 장치
+              const fallbackText = await zipEntry.async("string");
+              preTextarea.value = fallbackText.trim();
+            }
           }
           
-          // 3. DTA 파일 찾기 ➔ 다시 ZIP으로 열어서 내부 XML/TXT 찾기
+          // 3. DTA 파일 찾기 ➔ 다시 ZIP으로 열어서 내부 XML/TXT 추출
           if (relativePath.toLowerCase().endsWith('.dta')) {
             dtaFound = true;
             const dtaBuffer = await zipEntry.async("arraybuffer");
-            const dtaZip = await JSZip.loadAsync(dtaBuffer); // 이중 압축 해제
-
-            let innerText = "";
-            for (const innerPath in dtaZip.files) {
-              if (innerPath.toLowerCase().endsWith('.xml') || innerPath.toLowerCase().endsWith('.txt')) {
-                innerText = await dtaZip.files[innerPath].async("string");
-                break; // 첫 번째 발견된 XML 또는 TXT만 추출
+            try {
+              const dtaZip = await JSZip.loadAsync(dtaBuffer); // 이중 압축 해제
+              let innerText = "";
+              for (const innerPath in dtaZip.files) {
+                if (innerPath.toLowerCase().endsWith('.xml') || innerPath.toLowerCase().endsWith('.txt')) {
+                  innerText = await decodeText(dtaZip, innerPath);
+                  break;
+                }
               }
+              amendTextarea.value = innerText.trim() || "DTA 파일 내에 XML/TXT가 없습니다.";
+            } catch (err) {
+               const fallbackText = await zipEntry.async("string");
+               amendTextarea.value = fallbackText.trim();
             }
-            amendTextarea.value = innerText.trim() || "DTA 파일 내에 XML/TXT가 없습니다.";
           }
         }
 
