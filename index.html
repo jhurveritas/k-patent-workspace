@@ -38,6 +38,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>K-Patent Pro Workspace</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
   <style>
     textarea::-webkit-scrollbar { width: 8px; }
     textarea::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
@@ -107,9 +108,13 @@ textarea, input {
       <div id="draft-step-1" class="p-10 space-y-8 animate-fadeIn flex-grow flex flex-col">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-grow">
           <div class="flex flex-col space-y-3">
-            <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">거절이유 / 통지서 원문</label>
-            <textarea id="originalContext" oninput="checkDraftStep1()" class="flex-grow p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm leading-relaxed bg-gray-50/30 transition-all"></textarea>
-          </div>
+  <div class="flex justify-between items-center">
+    <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">거절이유 / 통지서 원문</label>
+    <button onclick="document.getElementById('draft-oa-file').click()" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold hover:bg-indigo-100 transition-colors">PDF 첨부</button>
+    <input type="file" id="draft-oa-file" accept=".pdf" class="hidden" onchange="extractTextFromPDF(event, 'originalContext')">
+  </div>
+  <textarea id="originalContext" oninput="checkDraftStep1()" class="flex-grow p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm leading-relaxed bg-gray-50/30 transition-all"></textarea>
+</div>
           <div class="flex flex-col space-y-3">
             <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">보정서 원문 (선택)</label>
             <textarea id="amendmentContext" class="flex-grow p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm leading-relaxed bg-gray-50/30 transition-all"></textarea>
@@ -125,7 +130,12 @@ textarea, input {
       </div>
 
       <div id="draft-step-2" class="hidden p-10 space-y-8 animate-fadeIn flex-grow flex-col">
-        <textarea id="userTemplate" oninput="checkDraftStep2()" class="flex-grow p-10 pt-14 rounded-3xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm leading-loose bg-slate-50/50 shadow-inner font-mono" placeholder="템플릿 구조를 붙여넣으세요..."></textarea>
+  <div class="flex justify-between items-center px-2">
+    <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">템플릿 구조 (수동 입력 또는 파일 첨부)</label>
+    <button onclick="document.getElementById('draft-template-file').click()" class="text-sm bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg font-bold hover:bg-indigo-100 transition-colors">TXT 파일 첨부</button>
+    <input type="file" id="draft-template-file" accept=".txt" class="hidden" onchange="extractTextFromTXT(event, 'userTemplate')">
+  </div>
+  <textarea id="userTemplate" oninput="checkDraftStep2()" class="flex-grow p-10 rounded-3xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm leading-loose bg-slate-50/50 shadow-inner font-mono" placeholder="템플릿 구조를 붙여넣으세요..."></textarea>
         <div class="pt-6 border-t border-gray-50 flex justify-between items-center">
           <button onclick="goToDraftStep(0)" class="px-8 py-3 text-gray-400 font-bold hover:text-indigo-600 transition-colors">이전 단계</button>
           <div id="draft-loading-spinner" class="hidden items-center space-x-4 pr-4"><div class="w-5 h-5 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><span class="text-sm font-bold text-indigo-600">AI 문서 작성 중...</span></div>
@@ -284,7 +294,62 @@ textarea, input {
 
     // 유틸리티 함수
     function fileToBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file); }); }
-    
+
+// 👇 추가: pdf.js 워커 설정
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    // 👇 추가: PDF 파일에서 텍스트 추출하여 텍스트에리어에 삽입
+    async function extractTextFromPDF(e, targetId) {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.type !== 'application/pdf') {
+        alert('PDF 파일만 지원합니다.');
+        e.target.value = '';
+        return;
+      }
+      
+      const targetTextarea = document.getElementById(targetId);
+      targetTextarea.value = "⏳ PDF에서 텍스트를 추출 중입니다. 잠시만 기다려주세요...";
+      targetTextarea.disabled = true;
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+        
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(' ');
+          fullText += pageText + "\n\n";
+        }
+        
+        targetTextarea.value = fullText.trim();
+        if(targetId === 'originalContext') checkDraftStep1();
+      } catch (error) {
+        targetTextarea.value = "";
+        alert("🚨 PDF 텍스트 추출 중 오류가 발생했습니다.\n(스캔본 이미지 기반 PDF는 텍스트 추출이 불가능할 수 있습니다)\n" + error.message);
+      } finally {
+        targetTextarea.disabled = false;
+        e.target.value = ''; // 파일 입력창 초기화
+      }
+    }
+
+    // 👇 추가: TXT 파일에서 텍스트 추출하여 텍스트에리어에 삽입
+    function extractTextFromTXT(e, targetId) {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        document.getElementById(targetId).value = event.target.result;
+        if(targetId === 'userTemplate') checkDraftStep2();
+      };
+      reader.readAsText(file);
+      e.target.value = ''; // 파일 입력창 초기화
+    }
+
+  
     // ================== 공통 탭 스위칭 ==================
     function switchTab(tab) { 
       ['draft', 'ids', 'compare', 'oa'].forEach(t => {
