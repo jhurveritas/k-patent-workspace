@@ -355,7 +355,7 @@ textarea, input {
       e.target.value = ''; // 파일 입력창 초기화
     }
 
-// 👇 완벽 수정본: 특허청(KIPO) 특유의 이중 압축 해제 및 EUC-KR 한글 깨짐 완벽 방어 로직
+// 👇 쓸데없는 로직 제거: 처음에 DTA가 성공했던 가장 완벽하고 순수한 추출 방식
     async function extractTextFromFIN(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -363,84 +363,50 @@ textarea, input {
       const preTextarea = document.getElementById('preAmendmentContext');
       const amendTextarea = document.getElementById('amendmentContext');
 
-      preTextarea.value = "⏳ 보정 전 명세서(HLZ ➔ ZIP ➔ XML) 추출 및 한글 복원 중...";
-      amendTextarea.value = "⏳ 보정서(DTA ➔ ZIP ➔ XML) 추출 및 한글 복원 중...";
+      preTextarea.value = "⏳ 보정 전 명세서(HLZ) 압축 해제 및 XML 추출 중...";
+      amendTextarea.value = "⏳ 보정서(DTA) 압축 해제 및 XML 추출 중...";
       preTextarea.disabled = true; amendTextarea.disabled = true;
 
       try {
         const arrayBuffer = await file.arrayBuffer();
-        
-        // 1. FIN 파일을 ZIP으로 취급하여 엽니다.
         const mainZip = await JSZip.loadAsync(arrayBuffer);
+        
         let hlzFound = false; 
         let dtaFound = false;
 
-        // 💡 핵심: 가장 강력한 인코딩 해결사 (특허청 EUC-KR 완벽 지원)
-        const decodeText = async (zipObj, path) => {
-          const uint8array = await zipObj.files[path].async("uint8array");
+        // 💡 가장 단순하고 확실한 방식: 처음에 보정서(DTA)가 성공했던 그 로직입니다!
+        const extractXML = async (zipEntry) => {
+          const innerBuffer = await zipEntry.async("arraybuffer");
+          const innerZip = await JSZip.loadAsync(innerBuffer);
           
-          // XML 파일의 맨 앞 200바이트만 읽어서 "어떤 언어 방식(인코딩)"을 썼는지 스캔합니다.
-          let headerStr = "";
-          for(let i = 0; i < Math.min(200, uint8array.length); i++) {
-              headerStr += String.fromCharCode(uint8array[i]);
+          for (const innerPath in innerZip.files) {
+            if (innerPath.toLowerCase().endsWith('.xml')) {
+              // 복잡한 인코딩 변환 없이 표준 텍스트로 바로 뽑습니다.
+              return await innerZip.files[innerPath].async("string");
+            }
           }
-          
-          // 특허청 파일에 EUC-KR 계열이 적혀있다면 강제로 EUC-KR로 읽습니다.
-          if (headerStr.match(/encoding=["'](euc-kr|cp949|ksc5601)["']/i)) {
-              return new TextDecoder('euc-kr').decode(uint8array);
-          } else if (headerStr.match(/encoding=["']utf-16["']/i)) {
-              return new TextDecoder('utf-16le').decode(uint8array);
-          }
-          
-          // 명시가 안 되어 있다면 기본 방식(UTF-8)으로 풀되, 한글 깨짐 문자()가 발견되면 즉시 EUC-KR로 재시도합니다.
-          let decoded = new TextDecoder('utf-8').decode(uint8array);
-          if (decoded.includes('')) {
-              decoded = new TextDecoder('euc-kr').decode(uint8array);
-          }
-          return decoded;
+          return null;
         };
 
         for (const relativePath in mainZip.files) {
-          const zipEntry = mainZip.files[relativePath];
+          const entry = mainZip.files[relativePath];
           
-          // 2. HLZ 파일 찾기 -> ZIP으로 변환하여 XML 추출
+          // 1. HLZ 처리 (압축 풀기 적용!)
           if (relativePath.toLowerCase().endsWith('.hlz')) {
             hlzFound = true;
             try {
-              const hlzBuffer = await zipEntry.async("arraybuffer");
-              const hlzZip = await JSZip.loadAsync(hlzBuffer); // HLZ를 ZIP으로 해제
-              
-              let extractedText = "";
-              for (const innerPath in hlzZip.files) {
-                if (innerPath.toLowerCase().endsWith('.xml')) {
-                  extractedText = await decodeText(hlzZip, innerPath);
-                  break; 
-                }
-              }
-              preTextarea.value = extractedText ? extractedText.trim() : "HLZ 안에 XML 파일이 없습니다.";
-            } catch (err) {
-              preTextarea.value = "🚨 HLZ 압축 해제 실패: " + err.message;
-            }
+              const xmlText = await extractXML(entry);
+              preTextarea.value = xmlText ? xmlText.trim() : "HLZ 안에 XML 파일이 없습니다.";
+            } catch (err) { preTextarea.value = "🚨 HLZ 추출 실패: " + err.message; }
           }
           
-          // 3. DTA 파일 찾기 -> ZIP으로 변환하여 XML 추출
+          // 2. DTA 처리 (처음 성공했던 상태로 원복)
           if (relativePath.toLowerCase().endsWith('.dta')) {
             dtaFound = true;
             try {
-              const dtaBuffer = await zipEntry.async("arraybuffer");
-              const dtaZip = await JSZip.loadAsync(dtaBuffer); // DTA를 ZIP으로 해제
-              
-              let extractedText = "";
-              for (const innerPath in dtaZip.files) {
-                if (innerPath.toLowerCase().endsWith('.xml')) {
-                  extractedText = await decodeText(dtaZip, innerPath);
-                  break; 
-                }
-              }
-              amendTextarea.value = extractedText ? extractedText.trim() : "DTA 안에 XML 파일이 없습니다.";
-            } catch (err) {
-               amendTextarea.value = "🚨 DTA 압축 해제 실패: " + err.message;
-            }
+              const xmlText = await extractXML(entry);
+              amendTextarea.value = xmlText ? xmlText.trim() : "DTA 안에 XML 파일이 없습니다.";
+            } catch (err) { amendTextarea.value = "🚨 DTA 추출 실패: " + err.message; }
           }
         }
 
