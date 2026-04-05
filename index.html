@@ -355,7 +355,7 @@ textarea, input {
       e.target.value = ''; // 파일 입력창 초기화
     }
 
-// 👇 수정됨: FIN 파일 이중 압축 해제 및 특허청 한글 인코딩(EUC-KR) 완벽 대응
+// 👇 수정: HLZ와 DTA 모두 엄격하게 ZIP으로 강제 변환하여 내부 XML 추출
     async function extractTextFromFIN(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -363,8 +363,8 @@ textarea, input {
       const preTextarea = document.getElementById('preAmendmentContext');
       const amendTextarea = document.getElementById('amendmentContext');
 
-      preTextarea.value = "⏳ FIN 파일 분석 중 (HLZ 이중 추출 중)...";
-      amendTextarea.value = "⏳ FIN 파일 분석 중 (DTA 이중 추출 중)...";
+      preTextarea.value = "⏳ FIN 파일 분석 중 (HLZ ➔ ZIP 변환 및 XML 추출)...";
+      amendTextarea.value = "⏳ FIN 파일 분석 중 (DTA ➔ ZIP 변환 및 XML 추출)...";
       preTextarea.disabled = true; amendTextarea.disabled = true;
 
       try {
@@ -373,11 +373,11 @@ textarea, input {
         const zip = await JSZip.loadAsync(arrayBuffer);
         let hlzFound = false; let dtaFound = false;
 
-        // 💡 텍스트 디코딩 헬퍼 함수 (EUC-KR / UTF-8 자동 판별)
+        // 💡 텍스트 디코딩 헬퍼 함수 (EUC-KR / UTF-8 자동 판별 및 외계어 방지)
         const decodeText = async (zipObj, path) => {
           const uint8array = await zipObj.files[path].async("uint8array");
           let text = new TextDecoder('utf-8').decode(uint8array);
-          // 특허청 XML에 EUC-KR 선언이 있거나 한글이 깨지는 패턴일 경우 EUC-KR로 재디코딩
+          // UTF-8로 열었을 때 깨짐 문자()가 있거나 EUC-KR 선언이 있으면 인코딩 변경
           if (text.toLowerCase().includes('encoding="euc-kr"') || text.includes('')) {
             text = new TextDecoder('euc-kr').decode(uint8array);
           }
@@ -387,54 +387,54 @@ textarea, input {
         for (const relativePath in zip.files) {
           const zipEntry = zip.files[relativePath];
           
-          // 2. HLZ 파일 찾기 ➔ DTA처럼 다시 ZIP으로 열어서 내부 XML 추출
+          // 2. HLZ 파일 찾기 ➔ ZIP으로 강제 변환 후 XML 추출
           if (relativePath.toLowerCase().endsWith('.hlz')) {
             hlzFound = true;
-            const hlzBuffer = await zipEntry.async("arraybuffer");
+            // JSZip 호환성을 위해 arraybuffer 대신 uint8array로 추출
+            const hlzData = await zipEntry.async("uint8array"); 
             try {
-              const hlzZip = await JSZip.loadAsync(hlzBuffer); // 이중 압축 해제
+              const hlzZip = await JSZip.loadAsync(hlzData); // 💡 여기서 HLZ를 ZIP으로 풉니다.
               let innerText = "";
               for (const innerPath in hlzZip.files) {
+                // 압축 풀린 파일 중 XML 또는 TXT 찾기
                 if (innerPath.toLowerCase().endsWith('.xml') || innerPath.toLowerCase().endsWith('.txt')) {
                   innerText = await decodeText(hlzZip, innerPath);
                   break;
                 }
               }
-              preTextarea.value = innerText.trim() || "HLZ 파일 내에 XML/TXT가 없습니다.";
+              preTextarea.value = innerText.trim() || "HLZ 파일 내부에 XML 텍스트가 없습니다.";
             } catch (err) {
-              // 압축 파일이 아닌 경우를 대비한 안전 장치
-              const fallbackText = await zipEntry.async("string");
-              preTextarea.value = fallbackText.trim();
+              preTextarea.value = `🚨 HLZ를 ZIP으로 변환하는 데 실패했습니다.\n(파일이 손상되었거나 예상치 못한 포맷입니다: ${err.message})`;
             }
           }
           
-          // 3. DTA 파일 찾기 ➔ 다시 ZIP으로 열어서 내부 XML/TXT 추출
+          // 3. DTA 파일 찾기 ➔ ZIP으로 강제 변환 후 XML 추출
           if (relativePath.toLowerCase().endsWith('.dta')) {
             dtaFound = true;
-            const dtaBuffer = await zipEntry.async("arraybuffer");
+            const dtaData = await zipEntry.async("uint8array");
             try {
-              const dtaZip = await JSZip.loadAsync(dtaBuffer); // 이중 압축 해제
+              const dtaZip = await JSZip.loadAsync(dtaData); // 💡 여기서 DTA를 ZIP으로 풉니다.
               let innerText = "";
               for (const innerPath in dtaZip.files) {
+                // 압축 풀린 파일 중 XML 또는 TXT 찾기
                 if (innerPath.toLowerCase().endsWith('.xml') || innerPath.toLowerCase().endsWith('.txt')) {
                   innerText = await decodeText(dtaZip, innerPath);
                   break;
                 }
               }
-              amendTextarea.value = innerText.trim() || "DTA 파일 내에 XML/TXT가 없습니다.";
+              amendTextarea.value = innerText.trim() || "DTA 파일 내부에 XML 텍스트가 없습니다.";
             } catch (err) {
-               const fallbackText = await zipEntry.async("string");
-               amendTextarea.value = fallbackText.trim();
+               amendTextarea.value = `🚨 DTA를 ZIP으로 변환하는 데 실패했습니다.\n(파일이 손상되었거나 예상치 못한 포맷입니다: ${err.message})`;
             }
           }
         }
 
-        if (!hlzFound) preTextarea.value = "FIN 파일 내에 HLZ 파일이 없습니다.";
-        if (!dtaFound) amendTextarea.value = "FIN 파일 내에 DTA 파일이 없습니다.";
+        if (!hlzFound) preTextarea.value = "FIN 파일 내에 보정 전 명세서(.hlz)가 없습니다.";
+        if (!dtaFound) amendTextarea.value = "FIN 파일 내에 보정서 원문(.dta)이 없습니다.";
 
       } catch (error) {
         preTextarea.value = "에러 발생"; amendTextarea.value = "에러 발생";
-        alert("🚨 FIN 파일 추출 중 오류가 발생했습니다.\n" + error.message);
+        alert("🚨 FIN 메인 파일 분석 중 오류가 발생했습니다.\n" + error.message);
       } finally {
         preTextarea.disabled = false; amendTextarea.disabled = false;
         e.target.value = ''; // 초기화
