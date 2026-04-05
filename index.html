@@ -355,7 +355,7 @@ textarea, input {
       e.target.value = ''; // 파일 입력창 초기화
     }
 
-// 👇 수정: HLZ와 DTA 모두 엄격하게 ZIP으로 강제 변환하여 내부 XML 추출
+// 👇 최종 수정: 사용자의 정확한 로직(FIN -> ZIP -> HLZ/DTA -> ZIP -> XML 추출) 적용
     async function extractTextFromFIN(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -363,81 +363,88 @@ textarea, input {
       const preTextarea = document.getElementById('preAmendmentContext');
       const amendTextarea = document.getElementById('amendmentContext');
 
-      preTextarea.value = "⏳ FIN 파일 분석 중 (HLZ ➔ ZIP 변환 및 XML 추출)...";
-      amendTextarea.value = "⏳ FIN 파일 분석 중 (DTA ➔ ZIP 변환 및 XML 추출)...";
+      preTextarea.value = "⏳ 보정 전 명세서(HLZ) 압축 해제 및 XML 추출 중...";
+      amendTextarea.value = "⏳ 보정서(DTA) 압축 해제 및 XML 추출 중...";
       preTextarea.disabled = true; amendTextarea.disabled = true;
 
       try {
         const arrayBuffer = await file.arrayBuffer();
-        // 1. FIN 파일을 ZIP으로 인식하여 열기
-        const zip = await JSZip.loadAsync(arrayBuffer);
-        let hlzFound = false; let dtaFound = false;
+        
+        // 1. FIN 파일을 ZIP으로 취급하여 엽니다.
+        const mainZip = await JSZip.loadAsync(arrayBuffer);
+        let hlzFound = false; 
+        let dtaFound = false;
 
-        // 💡 텍스트 디코딩 헬퍼 함수 (EUC-KR / UTF-8 자동 판별 및 외계어 방지)
+        // 💡 XML 텍스트 인코딩 헬퍼 함수 (EUC-KR 및 UTF-8 자동 판별)
         const decodeText = async (zipObj, path) => {
           const uint8array = await zipObj.files[path].async("uint8array");
+          // 기본적으로 UTF-8로 텍스트를 변환해봅니다.
           let text = new TextDecoder('utf-8').decode(uint8array);
-          // UTF-8로 열었을 때 깨짐 문자()가 있거나 EUC-KR 선언이 있으면 인코딩 변경
-          if (text.toLowerCase().includes('encoding="euc-kr"') || text.includes('')) {
+          // 만약 글자가 깨지거나(), XML 안에 EUC-KR 선언이 있다면 EUC-KR로 다시 변환합니다.
+          if (text.includes('') || text.toLowerCase().includes('encoding="euc-kr"')) {
             text = new TextDecoder('euc-kr').decode(uint8array);
           }
           return text;
         };
 
-        for (const relativePath in zip.files) {
-          const zipEntry = zip.files[relativePath];
+        // FIN 파일 내부의 파일들을 하나씩 검사합니다.
+        for (const relativePath in mainZip.files) {
+          const zipEntry = mainZip.files[relativePath];
           
-          // 2. HLZ 파일 찾기 ➔ ZIP으로 강제 변환 후 XML 추출
+          // 2. HLZ 파일 찾기 -> ZIP으로 변환하여 XML 추출
           if (relativePath.toLowerCase().endsWith('.hlz')) {
             hlzFound = true;
-            // JSZip 호환성을 위해 arraybuffer 대신 uint8array로 추출
-            const hlzData = await zipEntry.async("uint8array"); 
             try {
-              const hlzZip = await JSZip.loadAsync(hlzData); // 💡 여기서 HLZ를 ZIP으로 풉니다.
-              let innerText = "";
+              // HLZ를 ZIP 파일로 강제 인식시킵니다.
+              const hlzBuffer = await zipEntry.async("arraybuffer");
+              const hlzZip = await JSZip.loadAsync(hlzBuffer); 
+              
+              let extractedText = "";
+              // HLZ(ZIP) 안에서 XML 파일을 찾습니다.
               for (const innerPath in hlzZip.files) {
-                // 압축 풀린 파일 중 XML 또는 TXT 찾기
-                if (innerPath.toLowerCase().endsWith('.xml') || innerPath.toLowerCase().endsWith('.txt')) {
-                  innerText = await decodeText(hlzZip, innerPath);
-                  break;
+                if (innerPath.toLowerCase().endsWith('.xml')) {
+                  extractedText = await decodeText(hlzZip, innerPath);
+                  break; 
                 }
               }
-              preTextarea.value = innerText.trim() || "HLZ 파일 내부에 XML 텍스트가 없습니다.";
+              preTextarea.value = extractedText ? extractedText.trim() : "HLZ 안에 XML 파일이 없습니다.";
             } catch (err) {
-              preTextarea.value = `🚨 HLZ를 ZIP으로 변환하는 데 실패했습니다.\n(파일이 손상되었거나 예상치 못한 포맷입니다: ${err.message})`;
+              preTextarea.value = "🚨 HLZ를 ZIP으로 해제하지 못했습니다.\n에러: " + err.message;
             }
           }
           
-          // 3. DTA 파일 찾기 ➔ ZIP으로 강제 변환 후 XML 추출
+          // 3. DTA 파일 찾기 -> ZIP으로 변환하여 XML 추출
           if (relativePath.toLowerCase().endsWith('.dta')) {
             dtaFound = true;
-            const dtaData = await zipEntry.async("uint8array");
             try {
-              const dtaZip = await JSZip.loadAsync(dtaData); // 💡 여기서 DTA를 ZIP으로 풉니다.
-              let innerText = "";
+              // DTA를 ZIP 파일로 강제 인식시킵니다.
+              const dtaBuffer = await zipEntry.async("arraybuffer");
+              const dtaZip = await JSZip.loadAsync(dtaBuffer); 
+              
+              let extractedText = "";
+              // DTA(ZIP) 안에서 XML 파일을 찾습니다.
               for (const innerPath in dtaZip.files) {
-                // 압축 풀린 파일 중 XML 또는 TXT 찾기
-                if (innerPath.toLowerCase().endsWith('.xml') || innerPath.toLowerCase().endsWith('.txt')) {
-                  innerText = await decodeText(dtaZip, innerPath);
-                  break;
+                if (innerPath.toLowerCase().endsWith('.xml')) {
+                  extractedText = await decodeText(dtaZip, innerPath);
+                  break; 
                 }
               }
-              amendTextarea.value = innerText.trim() || "DTA 파일 내부에 XML 텍스트가 없습니다.";
+              amendTextarea.value = extractedText ? extractedText.trim() : "DTA 안에 XML 파일이 없습니다.";
             } catch (err) {
-               amendTextarea.value = `🚨 DTA를 ZIP으로 변환하는 데 실패했습니다.\n(파일이 손상되었거나 예상치 못한 포맷입니다: ${err.message})`;
+               amendTextarea.value = "🚨 DTA를 ZIP으로 해제하지 못했습니다.\n에러: " + err.message;
             }
           }
         }
 
-        if (!hlzFound) preTextarea.value = "FIN 파일 내에 보정 전 명세서(.hlz)가 없습니다.";
-        if (!dtaFound) amendTextarea.value = "FIN 파일 내에 보정서 원문(.dta)이 없습니다.";
+        if (!hlzFound) preTextarea.value = "FIN 파일 내에 HLZ 파일이 없습니다.";
+        if (!dtaFound) amendTextarea.value = "FIN 파일 내에 DTA 파일이 없습니다.";
 
       } catch (error) {
         preTextarea.value = "에러 발생"; amendTextarea.value = "에러 발생";
-        alert("🚨 FIN 메인 파일 분석 중 오류가 발생했습니다.\n" + error.message);
+        alert("🚨 FIN 파일 분석 중 오류가 발생했습니다.\n" + error.message);
       } finally {
         preTextarea.disabled = false; amendTextarea.disabled = false;
-        e.target.value = ''; // 초기화
+        e.target.value = ''; // 다음 업로드를 위해 파일 입력창 초기화
       }
     }  
   
