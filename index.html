@@ -119,7 +119,7 @@ textarea, input {
 </div>
           <div class="flex flex-col space-y-3 h-full">
   <div class="flex justify-between items-center">
-    <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">보정 명세서 (.fin 첨부)</label>
+    <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">보정 후 명세서/보정서 내(보정 후 fin 첨부)</label>
     <button onclick="document.getElementById('draft-fin-file').click()" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold hover:bg-indigo-100 transition-colors shadow-sm">FIN 첨부</button>
     <input type="file" id="draft-fin-file" accept=".fin" class="hidden" onchange="extractTextFromFIN(event)">
   </div>
@@ -938,6 +938,18 @@ textarea, input {
     function checkOAStep1() { document.getElementById('oa-error-box-1').classList.add('hidden'); }
     function checkOAStep2() { document.getElementById('oa-btn-generate').disabled = !document.getElementById('oa-user-draft').value.trim(); }
 
+    // 👇 추가: OA 거절이유 통지서 첨부 취소(삭제) 함수
+    window.removeOAFile = function(event) {
+      // 💡 중요: X 버튼을 눌렀을 때 파일 선택창이 다시 뜨지 않도록 클릭 이벤트를 차단합니다.
+      event.stopPropagation(); 
+      
+      oaState.officeActionFile = null; // 백엔드로 보낼 파일 데이터 초기화
+      document.getElementById('oa-office-action').value = ''; // input 태그 초기화
+      // 텍스트를 원래 안내 메시지로 원복
+      document.getElementById('oa-file-name').innerText = 'PDF, Word 파일 선택 또는 여기로 드래그'; 
+    }
+
+    // 👇 수정: 파일 업로드 성공 시 파일명 옆에 '✕' 버튼이 나타나도록 HTML 구조 보강
     async function handleOAFileUpload(e, droppedFile = null) {
       const file = droppedFile || (e.target.files && e.target.files[0]);
       if (!file) return;
@@ -949,7 +961,14 @@ textarea, input {
       try {
         const base64Data = await fileToBase64(file);
         oaState.officeActionFile = { name: file.name, mimeType: file.type || 'application/pdf', base64: base64Data };
-        document.getElementById('oa-file-name').innerHTML = `<span class="text-indigo-600 font-black">✅ ${file.name} (업로드 완료)</span>`;
+        
+        // 💡 여기가 핵심입니다! 파일명 우측에 X 버튼(removeOAFile 실행)을 달아줍니다.
+        document.getElementById('oa-file-name').innerHTML = `
+          <div class="flex items-center justify-center space-x-3">
+            <span class="text-indigo-600 font-black">✅ ${file.name} (업로드 완료)</span>
+            <button type="button" onclick="removeOAFile(event)" class="text-rose-400 hover:text-rose-600 font-black text-lg px-2 transition-colors" title="첨부 취소">✕</button>
+          </div>
+        `;
         checkOAStep1();
       } catch(err) {
         document.getElementById('oa-file-name').innerHTML = `<span class="text-rose-600 font-bold">❌ 업로드 실패</span>`;
