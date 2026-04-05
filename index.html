@@ -335,7 +335,9 @@ textarea, input {
               extractTextFromFIN(mockEvent);
             } else if (fileType === 'txt') {
               extractTextFromTXT(mockEvent, textareaId);
-            }
+            } else if (fileType === 'oa_spec') {
+              extractTextForOASpec(mockEvent);
+          }
           }
         });
       }
@@ -345,6 +347,7 @@ textarea, input {
       setupTextareaDropZone('preAmendmentContext', 'fin');     // 2. 보정 전 명세서 (FIN 드롭)
       setupTextareaDropZone('amendmentContext', 'fin');        // 3. 보정서 원문 (여기에 FIN을 드롭해도 똑같이 작동)
       setupTextareaDropZone('userTemplate', 'txt');            // 4. 템플릿 구조 (TXT 드롭)
+      setupTextareaDropZone('oa-original-spec', 'oa_spec');
     });
 
     // 유틸리티 함수
