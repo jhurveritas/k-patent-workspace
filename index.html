@@ -39,6 +39,7 @@
   <title>K-Patent Pro Workspace</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     textarea::-webkit-scrollbar { width: 8px; }
     textarea::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
@@ -115,10 +116,15 @@ textarea, input {
   </div>
   <textarea id="originalContext" oninput="checkDraftStep1()" class="flex-grow p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm leading-relaxed bg-gray-50/30 transition-all"></textarea>
 </div>
-          <div class="flex flex-col space-y-3">
-            <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">보정서 원문 (선택)</label>
-            <textarea id="amendmentContext" class="flex-grow p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm leading-relaxed bg-gray-50/30 transition-all"></textarea>
-          </div>
+          <div class="flex flex-col space-y-3 h-full">
+  <div class="flex justify-between items-center">
+    <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">보정 명세서 (.fin 첨부)</label>
+    <button onclick="document.getElementById('draft-fin-file').click()" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold hover:bg-indigo-100 transition-colors shadow-sm">FIN 자동 추출</button>
+    <input type="file" id="draft-fin-file" accept=".fin" class="hidden" onchange="extractTextFromFIN(event)">
+  </div>
+  <textarea id="preAmendmentContext" placeholder="보정 전 명세서 (HLZ 추출)..." class="flex-grow p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none"></textarea>
+  <textarea id="amendmentContext" placeholder="보정서 원문 (DTA ➔ XML 추출)..." class="flex-grow p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none"></textarea>
+</div>
           <div class="flex flex-col space-y-3">
             <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">대응 초안 (핵심 논리)</label>
             <textarea id="userDraftResponse" oninput="checkDraftStep1()" class="flex-grow p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm leading-relaxed bg-gray-50/30 transition-all"></textarea>
@@ -349,6 +355,62 @@ textarea, input {
       e.target.value = ''; // 파일 입력창 초기화
     }
 
+// 👇 추가: FIN 파일 이중 압축 해제 및 텍스트 자동 분류 로직
+    async function extractTextFromFIN(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const preTextarea = document.getElementById('preAmendmentContext');
+      const amendTextarea = document.getElementById('amendmentContext');
+
+      preTextarea.value = "⏳ FIN 파일 분석 중 (HLZ 추출)...";
+      amendTextarea.value = "⏳ FIN 파일 분석 중 (DTA 이중 추출)...";
+      preTextarea.disabled = true; amendTextarea.disabled = true;
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        // 1. FIN 파일을 ZIP으로 인식하여 열기
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        let hlzFound = false; let dtaFound = false;
+
+        for (const relativePath in zip.files) {
+          const zipEntry = zip.files[relativePath];
+          
+          // 2. HLZ 파일 찾기 ➔ 텍스트로 바로 읽어서 보정 전 명세서에 넣기
+          if (relativePath.toLowerCase().endsWith('.hlz')) {
+            hlzFound = true;
+            const hlzText = await zipEntry.async("string");
+            preTextarea.value = hlzText.trim() || "HLZ 파일에 텍스트 내용이 없습니다.";
+          }
+          
+          // 3. DTA 파일 찾기 ➔ 다시 ZIP으로 열어서 내부 XML/TXT 찾기
+          if (relativePath.toLowerCase().endsWith('.dta')) {
+            dtaFound = true;
+            const dtaBuffer = await zipEntry.async("arraybuffer");
+            const dtaZip = await JSZip.loadAsync(dtaBuffer); // 이중 압축 해제
+
+            let innerText = "";
+            for (const innerPath in dtaZip.files) {
+              if (innerPath.toLowerCase().endsWith('.xml') || innerPath.toLowerCase().endsWith('.txt')) {
+                innerText = await dtaZip.files[innerPath].async("string");
+                break; // 첫 번째 발견된 XML 또는 TXT만 추출
+              }
+            }
+            amendTextarea.value = innerText.trim() || "DTA 파일 내에 XML/TXT가 없습니다.";
+          }
+        }
+
+        if (!hlzFound) preTextarea.value = "FIN 파일 내에 HLZ 파일이 없습니다.";
+        if (!dtaFound) amendTextarea.value = "FIN 파일 내에 DTA 파일이 없습니다.";
+
+      } catch (error) {
+        preTextarea.value = "에러 발생"; amendTextarea.value = "에러 발생";
+        alert("🚨 FIN 파일 추출 중 오류가 발생했습니다.\n" + error.message);
+      } finally {
+        preTextarea.disabled = false; amendTextarea.disabled = false;
+        e.target.value = ''; // 초기화
+      }
+    }  
   
     // ================== 공통 탭 스위칭 ==================
     function switchTab(tab) { 
@@ -463,7 +525,19 @@ textarea, input {
       }, 500); // 0.5초마다 텍스트 업데이트
 
       try {
-        const bodyData = { type: 'draft', data: { originalContext: document.getElementById('originalContext').value, amendmentContext: document.getElementById('amendmentContext').value, userDraftResponse: document.getElementById('userDraftResponse').value, userTemplate: document.getElementById('userTemplate').value } };
+        // 👇 추가/수정: 백엔드를 수정하지 않기 위해, 두 개의 입력창 내용을 하나로 예쁘게 합쳐서 전송합니다.
+        const preVal = document.getElementById('preAmendmentContext').value.trim();
+        const amendVal = document.getElementById('amendmentContext').value.trim();
+        let combinedAmendment = "";
+        if (preVal) combinedAmendment += `[보정 전 명세서]\n${preVal}\n\n`;
+        if (amendVal) combinedAmendment += `[보정서 원문]\n${amendVal}`;
+
+        const bodyData = { type: 'draft', data: { 
+            originalContext: document.getElementById('originalContext').value, 
+            amendmentContext: combinedAmendment, // ⬅️ 합쳐진 텍스트를 전송
+            userDraftResponse: document.getElementById('userDraftResponse').value, 
+            userTemplate: document.getElementById('userTemplate').value 
+        } };
         goToDraftStep(2); 
         
         await streamFetchGemini('/api/gemini', bodyData, (textChunk) => { 
