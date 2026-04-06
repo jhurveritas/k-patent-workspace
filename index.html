@@ -224,6 +224,7 @@ textarea, input {
     <div class="bg-white rounded-3xl shadow-sm border border-gray-200 flex-grow flex flex-col overflow-hidden min-h-[650px]">
       
       <div id="oa-step-1" class="p-10 space-y-8 animate-fadeIn flex-grow flex flex-col">
+        
         <div class="flex flex-col space-y-3">
           <label class="text-[11px] font-black text-gray-400 uppercase">대상 국가 (IP5)</label>
           <div class="flex flex-wrap gap-3" id="oa-country-buttons">
@@ -236,15 +237,17 @@ textarea, input {
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 flex-grow">
-          <div class="flex flex-col space-y-3 flex-1 h-full">
-  <div class="flex justify-between items-center">
-    <label id="oa-label-spec" class="text-[11px] font-black text-gray-400">최초명세서 초안(국문)</label>
-    <button onclick="document.getElementById('oa-spec-file').click()" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold hover:bg-indigo-100 transition-colors shadow-sm">Word / HLZ 첨부</button>
-    <input type="file" id="oa-spec-file" accept=".docx,.hlz" class="hidden" onchange="extractTextForOASpec(event)">
-  </div>
-  <textarea id="oa-original-spec" oninput="checkOAStep1()" class="flex-grow p-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none" placeholder="최초 명세서 초안을 직접 입력하시거나, Word(.docx) 또는 HLZ 파일을 이곳에 드래그 앤 드롭(또는 첨부) 해주세요."></textarea>
-</div>
-              <div class="flex flex-col space-y-3 flex-1">
+          <div class="flex flex-col space-y-6">
+            <div class="flex flex-col space-y-3 flex-1 h-full">
+              <div class="flex justify-between items-center">
+                <label id="oa-label-spec" class="text-[11px] font-black text-gray-400">최초명세서 초안(국문)</label>
+                <button onclick="document.getElementById('oa-spec-file').click()" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold hover:bg-indigo-100 transition-colors shadow-sm">Word / HLZ 첨부</button>
+                <input type="file" id="oa-spec-file" accept=".docx,.hlz" class="hidden" onchange="extractTextForOASpec(event)">
+              </div>
+              <textarea id="oa-original-spec" oninput="checkOAStep1()" class="flex-grow p-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none" placeholder="최초 명세서 초안을 직접 입력하시거나, Word(.docx) 또는 HLZ 파일을 이곳에 드래그 앤 드롭(또는 첨부) 해주세요."></textarea>
+            </div>
+            
+            <div class="flex flex-col space-y-3 flex-1">
               <label class="text-[11px] font-black text-gray-400">거절이유 / 통지서 원문 (첨부파일)</label>
               <div id="dropzone-oa" class="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:bg-indigo-50 transition min-h-[120px] flex flex-col items-center justify-center gap-2" onclick="document.getElementById('oa-office-action').click()">
                  <svg class="w-7 h-7 text-indigo-300 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
@@ -253,22 +256,30 @@ textarea, input {
               </div>
             </div>
           </div>
+
           <div class="flex flex-col space-y-6">
-            <div class="flex flex-col space-y-3 flex-1"><label id="oa-label-pending" class="text-[11px] font-black text-gray-400">현재 계류중인 청구항(국문)</label><textarea id="oa-pending-claims" oninput="checkOAStep1()" class="flex-grow p-4 rounded-2xl border bg-gray-50/30 text-sm" placeholder="현재 심사 대상인 청구항을 입력하세요..."></textarea></div>
-            <div class="flex flex-col space-y-3 flex-1"><label id="oa-label-amended" class="text-[11px] font-black text-gray-400">보정 후 청구항(국문)</label><textarea id="oa-amended-claims" oninput="checkOAStep1()" class="flex-grow p-4 rounded-2xl border bg-gray-50/30 text-sm" placeholder="보정된 청구항을 입력하세요..."></textarea></div>
+            <div class="flex flex-col space-y-3 flex-1">
+              <label id="oa-label-pending" class="text-[11px] font-black text-gray-400">현재 계류중인 청구항(국문)</label>
+              <textarea id="oa-pending-claims" oninput="checkOAStep1()" class="flex-grow p-4 rounded-2xl border bg-gray-50/30 text-sm" placeholder="현재 심사 대상인 청구항을 입력하세요..."></textarea>
+            </div>
+            
+            <div class="flex flex-col space-y-3 flex-1">
+              <label id="oa-label-amended" class="text-[11px] font-black text-gray-400">보정 후 청구항(국문)</label>
+              <textarea id="oa-amended-claims" oninput="checkOAStep1()" class="flex-grow p-4 rounded-2xl border bg-gray-50/30 text-sm" placeholder="보정된 청구항을 입력하세요..."></textarea>
+            </div>
           </div>
         </div>
-        
+
         <div class="pt-6 mt-2 pb-2 sm:pr-2 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div id="oa-error-box-1" class="hidden w-full sm:w-auto px-5 py-3.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-100 flex items-center shadow-sm">
             ⚠️ 모든 필수 항목을 채워주세요.
           </div>
-          <div class="hidden sm:block flex-grow"></div> <button id="oa-btn-next-step1" onclick="goToOAStep(1)" class="w-full sm:w-auto mb-1 sm:mr-2 px-10 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center">
+          <div class="hidden sm:block flex-grow"></div>
+          <button id="oa-btn-next-step1" onclick="goToOAStep(1)" class="w-full sm:w-auto mb-1 sm:mr-2 px-10 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center">
             대응 논리 입력 ➔
           </button>
         </div>
       </div>
-
       <div id="oa-step-2" class="hidden p-10 space-y-8 animate-fadeIn flex-grow flex-col">
         <textarea id="oa-user-draft" oninput="checkOAStep2()" class="flex-grow p-8 rounded-3xl border bg-slate-50/50 text-sm leading-loose outline-none" placeholder="심사관의 거절이유를 극복하기 위한 핵심 논리, 기술적 차이점 등을 입력하세요..."></textarea>
         
