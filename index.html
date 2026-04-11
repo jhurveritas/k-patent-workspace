@@ -313,7 +313,7 @@ textarea, input {
       <div class="flex justify-between items-end mb-8">
         <div>
           <h2 class="text-2xl font-bold text-slate-900 tracking-tight">공지 및 익명게시판</h2>
-          <p class="text-slate-500 mt-1 text-sm">자유롭게 의견을 남기거나 공지글에 게시되는 공간입니다.</p>
+          <p class="text-slate-500 mt-1 text-sm">자유롭게 의견을 남기거나 공지글이 게시되는 공간입니다.</p>
         </div>
         <div class="flex space-x-3">
           <button onclick="fetchBoardPosts()" class="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">🔄 새로고침</button>
@@ -1123,7 +1123,7 @@ textarea, input {
     window.addEventListener('DOMContentLoaded', () => {
       if (document.getElementById('board-editor')) {
         quill = new Quill('#board-editor', {
-          theme: 'snow', placeholder: '나누고 싶은 이야기를 편하게 적어주세요...',
+          theme: 'snow', placeholder: '건의사항 또는 나누고 싶은 이야기를 편하게 적어주세요...',
           modules: { toolbar: [['bold', 'italic', 'underline', 'strike'], [{ 'color': [] }, { 'background': [] }], [{ 'list': 'ordered'}, { 'list': 'bullet' }], ['clean']] }
         });
       }
