@@ -83,15 +83,16 @@ textarea, input {
 
   <div class="bg-white border-b z-30 relative shadow-sm overflow-x-auto whitespace-nowrap">
     <div class="max-w-7xl mx-auto px-6 flex space-x-8">
-      <button id="tab-draft" onclick="switchTab('draft')" class="py-4 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition-all">의견서 생성기</button>
+      <button id="tab-board" onclick="switchTab('board')" class="py-4 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition-all">공지 및 익명게시판</button>
+      
+      <button id="tab-draft" onclick="switchTab('draft')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">의견서 생성기</button>
       <button id="tab-ids" onclick="switchTab('ids')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">IDS 판별기</button>
       <button id="tab-compare" onclick="switchTab('compare')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">한/영 청구항 대조기</button>
       <button id="tab-oa" onclick="switchTab('oa')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">국가별 OA 논리 검토기</button>
-      <button id="tab-board" onclick="switchTab('board')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">공지 및 익명게시판</button>
     </div>
   </div>
 
-  <main id="tool-draft" class="flex-grow flex flex-col max-w-6xl mx-auto w-full py-10 px-6 block">
+  <main id="tool-draft" class="flex-grow flex flex-col max-w-6xl mx-auto w-full py-10 px-6 hidden">
     <div class="flex items-center justify-between max-w-lg mx-auto mb-10 w-full relative">
       <div id="draft-ind-line-1" class="absolute top-4 left-0 w-1/2 h-[2px] bg-gray-200 -z-10 transition-colors"></div>
       <div id="draft-ind-line-2" class="absolute top-4 right-0 w-1/2 h-[2px] bg-gray-200 -z-10 transition-colors"></div>
@@ -312,7 +313,7 @@ textarea, input {
     </div>
   </main>
 
-  <main id="tool-board" class="flex-grow flex flex-col max-w-4xl mx-auto w-full py-10 px-6 hidden animate-fadeIn">
+  <main id="tool-board" class="flex-grow flex flex-col max-w-4xl mx-auto w-full py-10 px-6 animate-fadeIn">
     
     <div id="board-list-view" class="flex flex-col flex-grow">
       <div class="flex justify-between items-end mb-8">
@@ -601,8 +602,9 @@ textarea, input {
     // ================== 공통 탭 스위칭 ==================
     function switchTab(tab) { 
       ['draft', 'ids', 'compare', 'oa', 'board'].forEach(t => {
-        document.getElementById(`tool-${t}`).classList.toggle('hidden', tab !== t); 
-        document.getElementById(`tool-${t}`).classList.toggle(t === 'compare' ? 'flex' : 'block', tab === t);
+        const el = document.getElementById(`tool-${t}`);
+        if (el) el.classList.toggle('hidden', tab !== t); 
+        
         const btn = document.getElementById(`tab-${t}`);
         if (btn) {
           btn.className = tab === t ? "py-4 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition-all" : "py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all";
@@ -610,10 +612,9 @@ textarea, input {
       });
       gtag('event', 'click_tool_tab', { 'tab_name': tab });
       
-      // 💡 익명게시판 탭을 눌렀을 때만 DB에서 글을 가져오도록 실행
       if (tab === 'board') fetchBoardPosts();
     }
-
+      
     // ================== 공통 인디케이터 업데이트 ==================
     function updateInd(prefix, step) {
       for(let i=0; i<=2; i++) {
@@ -1171,6 +1172,9 @@ textarea, input {
           modules: { toolbar: [['bold', 'italic', 'underline', 'strike'], [{ 'color': [] }, { 'background': [] }], [{ 'list': 'ordered'}, { 'list': 'bullet' }], ['clean']] }
         });
       }
+      
+      // 💡 [추가] 첫 화면이 게시판이므로, 페이지가 열리자마자 글을 불러옵니다!
+      fetchBoardPosts();
     });
 
     async function fetchBoardPosts() {
