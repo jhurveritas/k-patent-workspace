@@ -1299,17 +1299,51 @@ textarea, input {
         fetchBoardPosts(); 
       } catch (e) { alert(e.message); }
     }
+  // 💡 화면 전환용 함수 2개 추가
+    function openWriteMode() {
+      document.getElementById('board-list-view').classList.add('hidden');
+      document.getElementById('board-write-view').classList.remove('hidden');
+      document.getElementById('board-write-view').classList.add('flex');
+    }
+
+    function closeWriteMode() {
+      document.getElementById('board-write-view').classList.add('hidden');
+      document.getElementById('board-write-view').classList.remove('flex');
+      document.getElementById('board-list-view').classList.remove('hidden');
+      
+      // 취소하고 나갈 때 작성하던 내용 비우기
+      if(quill) quill.root.innerHTML = '';
+      document.getElementById('board-admin-key').value = '';
+      document.getElementById('board-author-pwd').value = '';
+    }
+
+    // 💡 기존 submitBoardPost 함수 끝부분 수정
     async function submitBoardPost() {
-      const contentText = quill.getText().trim(); const contentHTML = quill.root.innerHTML;   
-      const adminKeyInput = document.getElementById('board-admin-key'); const authorPwdInput = document.getElementById('board-author-pwd'); const btn = document.getElementById('btn-submit-board');
+      const contentText = quill.getText().trim(); 
+      const contentHTML = quill.root.innerHTML;   
+      const adminKeyInput = document.getElementById('board-admin-key'); 
+      const authorPwdInput = document.getElementById('board-author-pwd'); 
+      const btn = document.getElementById('btn-submit-board');
+      
       if (!contentText) return alert("내용을 입력해주세요.");
       btn.disabled = true; btn.innerText = "등록 중...";
+      
       try {
-        const res = await fetch('/api/board', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: contentHTML, admin_key: adminKeyInput.value.trim(), password: authorPwdInput.value.trim() }) });
+        const res = await fetch('/api/board', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ content: contentHTML, admin_key: adminKeyInput.value.trim(), password: authorPwdInput.value.trim() }) 
+        });
         if (!res.ok) throw new Error("게시글 등록에 실패했습니다.");
-        quill.root.innerHTML = ''; adminKeyInput.value = ''; authorPwdInput.value = '';
+        
+        // 성공 후 화면 전환 및 목록 새로고침
+        closeWriteMode(); // ⬅️ 작성 성공 시 목록 화면으로 돌아가는 함수 호출
         await fetchBoardPosts(); 
-      } catch (error) { alert(error.message); } finally { btn.disabled = false; btn.innerText = "글 등록하기"; }
+      } catch (error) { 
+        alert(error.message); 
+      } finally { 
+        btn.disabled = false; btn.innerText = "등록하기"; 
+      }
     }
   
 </script>
