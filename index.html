@@ -1161,7 +1161,9 @@ textarea, input {
             </div>
             
             <div class="flex justify-between items-end mt-4">
-               <div class="text-[11px] text-slate-400 font-mono">${new Date(post.created_at).toLocaleString('ko-KR')}</div>
+               <div class="text-[11px] text-slate-400 mt-4 font-mono">
+  ${new Date(post.created_at + (post.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+</div>
                <button onclick="toggleComments(${post.id})" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
                   💬 댓글달기 ${post.comment_count || 0}
                </button>
