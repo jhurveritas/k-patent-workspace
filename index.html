@@ -1098,22 +1098,14 @@ textarea, input {
 
 // ================== 익명게시판 통신 로직 ==================
     let quill;
-    let boardPostsData = []; // 게시글 데이터를 임시 보관할 배열
-    let editQuillInstances = {}; // 개별 수정 에디터들을 보관할 객체
+    let boardPostsData = []; 
+    let editQuillInstances = {}; 
 
     window.addEventListener('DOMContentLoaded', () => {
       if (document.getElementById('board-editor')) {
         quill = new Quill('#board-editor', {
-          theme: 'snow',
-          placeholder: '나누고 싶은 이야기를 편하게 적어주세요...',
-          modules: {
-            toolbar: [
-              ['bold', 'italic', 'underline', 'strike'],        
-              [{ 'color': [] }, { 'background': [] }],          
-              [{ 'list': 'ordered'}, { 'list': 'bullet' }],     
-              ['clean']                                         
-            ]
-          }
+          theme: 'snow', placeholder: '나누고 싶은 이야기를 편하게 적어주세요...',
+          modules: { toolbar: [['bold', 'italic', 'underline', 'strike'], [{ 'color': [] }, { 'background': [] }], [{ 'list': 'ordered'}, { 'list': 'bullet' }], ['clean']] }
         });
       }
     });
@@ -1123,172 +1115,182 @@ textarea, input {
       try {
         const response = await fetch('/api/board');
         if (!response.ok) throw new Error('불러오기 실패');
+        boardPostsData = await response.json();
+        editQuillInstances = {}; 
         
-        const posts = await response.json();
-        boardPostsData = posts; // 수정 모드에서 원본 내용을 가져오기 위해 저장
-        editQuillInstances = {}; // 새로고침 시 기존 에디터 인스턴스 초기화
-        
-        if (posts.length === 0) {
+        if (boardPostsData.length === 0) {
           listContainer.innerHTML = `<div class="p-10 text-center text-slate-400 font-bold bg-white rounded-3xl border border-dashed border-gray-200">첫 번째 글의 주인공이 되어보세요! 🎉</div>`;
           return;
         }
 
-        listContainer.innerHTML = posts.map(post => `
+        listContainer.innerHTML = boardPostsData.map(post => `
           <div id="post-container-${post.id}" class="bg-white p-6 rounded-2xl shadow-sm border ${post.is_announcement ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-200'} transition-all hover:shadow-md relative">
-            
             <div class="absolute top-4 right-4 flex space-x-3 z-10">
-              <button onclick="openEditMode(${post.id})" class="text-slate-300 hover:text-indigo-500 transition-colors" title="게시글 수정">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-              </button>
-              <button onclick="deleteBoardPost(${post.id})" class="text-slate-300 hover:text-rose-500 transition-colors" title="게시글 삭제">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              </button>
+              <button onclick="openEditMode(${post.id})" class="text-slate-300 hover:text-indigo-500 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+              <button onclick="deleteBoardPost(${post.id})" class="text-slate-300 hover:text-rose-500 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
             </div>
-
             ${post.is_announcement ? `<div class="mb-3"><span class="bg-indigo-600 text-white text-[10px] font-black px-2.5 py-1 rounded shadow-sm uppercase tracking-widest">Notice</span></div>` : ''}
             
-            <div id="view-mode-${post.id}">
-              <div class="ql-snow"><div class="ql-editor !p-0 text-sm text-slate-800 leading-relaxed font-medium" style="min-height: auto;">${post.content}</div></div>
-            </div>
+            <div id="view-mode-${post.id}"><div class="ql-snow"><div class="ql-editor !p-0 text-sm text-slate-800 leading-relaxed font-medium" style="min-height: auto;">${post.content}</div></div></div>
 
             <div id="edit-mode-${post.id}" class="hidden mt-2">
-              <div class="border border-indigo-200 rounded-xl overflow-hidden mb-3 shadow-inner">
-                <div id="edit-editor-${post.id}" style="height: 150px; background-color: white; border: none;"></div>
-              </div>
+              <div class="border border-indigo-200 rounded-xl overflow-hidden mb-3 shadow-inner"><div id="edit-editor-${post.id}" style="height: 150px; background-color: white; border: none;"></div></div>
               <div class="flex justify-end space-x-2">
-                <button onclick="cancelEditMode(${post.id})" class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">취소</button>
-                <button onclick="saveEditPost(${post.id})" class="px-4 py-2 text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg shadow-md transition-colors">저장하기</button>
+                <button onclick="cancelEditMode(${post.id})" class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg">취소</button>
+                <button onclick="saveEditPost(${post.id})" class="px-4 py-2 text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg">저장하기</button>
               </div>
             </div>
             
-            <div class="text-[11px] text-slate-400 mt-4 font-mono">${new Date(post.created_at).toLocaleString('ko-KR')}</div>
+            <div class="flex justify-between items-end mt-4">
+               <div class="text-[11px] text-slate-400 font-mono">${new Date(post.created_at).toLocaleString('ko-KR')}</div>
+               <button onclick="toggleComments(${post.id})" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
+                  💬 댓글 ${post.comment_count || 0}개
+               </button>
+            </div>
+
+            <div id="comments-section-${post.id}" class="hidden mt-4 pt-4 border-t border-gray-100">
+               <div id="comments-list-${post.id}" class="space-y-3 mb-4"></div>
+               <div class="flex gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                  <input type="password" id="comment-pwd-root-${post.id}" placeholder="비밀번호" class="w-20 text-xs p-2 rounded-lg border outline-none focus:border-indigo-400">
+                  <input type="text" id="comment-content-root-${post.id}" placeholder="댓글을 남겨보세요..." class="flex-grow text-xs p-2 rounded-lg border outline-none focus:border-indigo-400">
+                  <button onclick="submitComment(${post.id}, null)" class="bg-indigo-600 text-white text-xs font-bold px-4 rounded-lg hover:bg-indigo-700">등록</button>
+               </div>
+            </div>
           </div>
         `).join('');
       } catch (error) {
-        listContainer.innerHTML = `<div class="p-6 text-center text-rose-500 font-bold bg-rose-50 rounded-2xl border border-rose-100">게시글을 불러오지 못했습니다.</div>`;
+        listContainer.innerHTML = `<div class="p-6 text-center text-rose-500 font-bold bg-rose-50 rounded-2xl">게시글을 불러오지 못했습니다.</div>`;
       }
     }
 
-    // 💡 수정 모드 켜기
+    // 💡 댓글 열기/닫기 및 불러오기
+    async function toggleComments(postId) {
+      const section = document.getElementById(`comments-section-${postId}`);
+      if (!section.classList.contains('hidden')) { section.classList.add('hidden'); return; }
+      
+      section.classList.remove('hidden');
+      await loadComments(postId);
+    }
+
+    async function loadComments(postId) {
+      const listDiv = document.getElementById(`comments-list-${postId}`);
+      listDiv.innerHTML = `<div class="text-xs text-center text-slate-400">불러오는 중...</div>`;
+      try {
+        const res = await fetch(`/api/comment?post_id=${postId}`);
+        const comments = await res.json();
+        
+        if(comments.length === 0) { listDiv.innerHTML = ''; return; }
+
+        const roots = comments.filter(c => !c.parent_id);
+        listDiv.innerHTML = roots.map(root => `
+          <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-100">
+             <p class="text-sm text-slate-800 font-medium break-all">${root.content}</p>
+             <div class="flex items-center gap-3 mt-2">
+                <span class="text-[10px] text-slate-400">${new Date(root.created_at).toLocaleString('ko-KR')}</span>
+                <button onclick="document.getElementById('reply-input-${root.id}').classList.toggle('hidden')" class="text-[10px] font-bold text-indigo-500 hover:text-indigo-700">답글 쓰기</button>
+                <button onclick="deleteComment(${root.id}, ${postId})" class="text-[10px] font-bold text-rose-400 hover:text-rose-600">삭제</button>
+             </div>
+             <div id="reply-input-${root.id}" class="hidden mt-3 flex gap-2">
+                <input type="password" id="comment-pwd-${root.id}" placeholder="비밀번호" class="w-16 p-2 text-[11px] border rounded-lg outline-none">
+                <input type="text" id="comment-content-${root.id}" placeholder="대댓글 입력..." class="flex-grow p-2 text-[11px] border rounded-lg outline-none">
+                <button onclick="submitComment(${postId}, ${root.id})" class="bg-slate-700 text-white px-3 py-1 text-[11px] font-bold rounded-lg hover:bg-slate-800">등록</button>
+             </div>
+             <div class="mt-3 space-y-2 pl-4 border-l-2 border-indigo-100">
+                ${comments.filter(c => c.parent_id === root.id).map(reply => `
+                   <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                      <p class="text-xs text-slate-700 font-medium break-all">${reply.content}</p>
+                      <div class="flex items-center gap-3 mt-2">
+                         <span class="text-[10px] text-slate-400">${new Date(reply.created_at).toLocaleString('ko-KR')}</span>
+                         <button onclick="deleteComment(${reply.id}, ${postId})" class="text-[10px] font-bold text-rose-400 hover:text-rose-600">삭제</button>
+                      </div>
+                   </div>
+                `).join('')}
+             </div>
+          </div>
+        `).join('');
+      } catch (e) { listDiv.innerHTML = `<div class="text-xs text-rose-500">댓글 오류</div>`; }
+    }
+
+    // 💡 댓글/대댓글 등록
+    async function submitComment(postId, parentId) {
+      const pwdId = parentId ? `comment-pwd-${parentId}` : `comment-pwd-root-${postId}`;
+      const contentId = parentId ? `comment-content-${parentId}` : `comment-content-root-${postId}`;
+      const pwd = document.getElementById(pwdId).value.trim();
+      const content = document.getElementById(contentId).value.trim();
+
+      if(!content) return alert("댓글 내용을 입력하세요.");
+      
+      try {
+        const res = await fetch('/api/comment', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ post_id: postId, parent_id: parentId, content: content, password: pwd })
+        });
+        if(!res.ok) throw new Error("등록 실패");
+        
+        document.getElementById(pwdId).value = ''; document.getElementById(contentId).value = '';
+        await loadComments(postId); // 댓글 부분만 새로고침
+        fetchBoardPosts(); // 바깥쪽 개수 업데이트 위해 전체 새로고침 (백그라운드)
+      } catch(e) { alert(e.message); }
+    }
+
+    // 💡 댓글 삭제
+    async function deleteComment(commentId, postId) {
+      const secretKey = prompt("댓글을 삭제하려면 비밀번호(또는 관리자 키)를 입력하세요:");
+      if (!secretKey) return;
+      try {
+        const res = await fetch('/api/comment', {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: commentId, secret_key: secretKey })
+        });
+        if(!res.ok) throw new Error("비밀번호가 틀립니다.");
+        await loadComments(postId);
+        fetchBoardPosts();
+      } catch(e) { alert(e.message); }
+    }
+
+    // (기존 게시글 수정/삭제/등록 함수들 유지)
     function openEditMode(postId) {
       document.getElementById(`view-mode-${postId}`).classList.add('hidden');
       document.getElementById(`edit-mode-${postId}`).classList.remove('hidden');
-      
-      // 에디터가 아직 생성되지 않았다면 초기화
       if (!editQuillInstances[postId]) {
-        editQuillInstances[postId] = new Quill(`#edit-editor-${postId}`, {
-          theme: 'snow',
-          modules: {
-            toolbar: [
-              ['bold', 'italic', 'underline', 'strike'],
-              [{ 'color': [] }, { 'background': [] }],
-              ['clean']
-            ]
-          }
-        });
+        editQuillInstances[postId] = new Quill(`#edit-editor-${postId}`, { theme: 'snow', modules: { toolbar: [['bold', 'italic', 'underline', 'strike'], [{ 'color': [] }, { 'background': [] }], ['clean']] } });
       }
-      
-      // 원본 텍스트를 에디터 안에 채워넣기
       const post = boardPostsData.find(p => p.id === postId);
-      if (post) {
-        editQuillInstances[postId].root.innerHTML = post.content;
-      }
+      if (post) editQuillInstances[postId].root.innerHTML = post.content;
     }
-
-    // 💡 수정 모드 끄기 (취소)
     function cancelEditMode(postId) {
-      document.getElementById(`edit-mode-${postId}`).classList.add('hidden');
-      document.getElementById(`view-mode-${postId}`).classList.remove('hidden');
+      document.getElementById(`edit-mode-${postId}`).classList.add('hidden'); document.getElementById(`view-mode-${postId}`).classList.remove('hidden');
     }
-
-    // 💡 수정한 내용 저장하기
     async function saveEditPost(postId) {
-      const secretKey = prompt("게시글을 수정하려면 작성 시 입력한 비밀번호(또는 관리자 키)를 입력하세요:");
+      const secretKey = prompt("수정하려면 작성 시 비밀번호(또는 관리자 키)를 입력하세요:");
       if (!secretKey) return;
-
-      const newContentText = editQuillInstances[postId].getText().trim();
       const newContentHTML = editQuillInstances[postId].root.innerHTML;
-
-      if (!newContentText) return alert("수정할 내용을 입력해주세요.");
-
       try {
-        const response = await fetch('/api/board', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: postId, content: newContentHTML, secret_key: secretKey })
-        });
-
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || "수정에 실패했습니다.");
-        }
-
-        alert("게시글이 성공적으로 수정되었습니다.");
-        fetchBoardPosts(); // 수정 완료 후 목록 새로고침
-      } catch (error) {
-        alert("🚨 " + error.message);
-      }
-    }
-
-    async function deleteBoardPost(postId) {
-      const secretKey = prompt("게시글을 삭제하려면 작성 시 입력한 비밀번호(또는 관리자 키)를 입력하세요:");
-      if (!secretKey) return; 
-
-      try {
-        const response = await fetch('/api/board', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: postId, secret_key: secretKey })
-        });
-
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || "삭제에 실패했습니다.");
-        }
-
-        alert("게시글이 성공적으로 삭제되었습니다.");
+        const res = await fetch('/api/board', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: postId, content: newContentHTML, secret_key: secretKey }) });
+        if (!res.ok) throw new Error("비밀번호가 틀립니다.");
         fetchBoardPosts(); 
-      } catch (error) {
-        alert("🚨 " + error.message);
-      }
+      } catch (e) { alert(e.message); }
     }
-
-    async function submitBoardPost() {
-      const contentText = quill.getText().trim(); 
-      const contentHTML = quill.root.innerHTML;   
-      
-      const adminKeyInput = document.getElementById('board-admin-key');
-      const authorPwdInput = document.getElementById('board-author-pwd');
-      const btn = document.getElementById('btn-submit-board');
-      
-      const adminKey = adminKeyInput.value.trim();
-      const authorPwd = authorPwdInput.value.trim();
-
-      if (!contentText) return alert("내용을 입력해주세요.");
-
-      btn.disabled = true;
-      btn.innerText = "등록 중...";
-
+    async function deleteBoardPost(postId) {
+      const secretKey = prompt("삭제하려면 비밀번호(또는 관리자 키)를 입력하세요:");
+      if (!secretKey) return; 
       try {
-        const response = await fetch('/api/board', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: contentHTML, admin_key: adminKey, password: authorPwd })
-        });
-
-        if (!response.ok) throw new Error("게시글 등록에 실패했습니다.");
-
-        quill.root.innerHTML = '';
-        adminKeyInput.value = '';
-        authorPwdInput.value = '';
+        const res = await fetch('/api/board', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: postId, secret_key: secretKey }) });
+        if (!res.ok) throw new Error("비밀번호가 틀립니다.");
+        fetchBoardPosts(); 
+      } catch (e) { alert(e.message); }
+    }
+    async function submitBoardPost() {
+      const contentText = quill.getText().trim(); const contentHTML = quill.root.innerHTML;   
+      const adminKeyInput = document.getElementById('board-admin-key'); const authorPwdInput = document.getElementById('board-author-pwd'); const btn = document.getElementById('btn-submit-board');
+      if (!contentText) return alert("내용을 입력해주세요.");
+      btn.disabled = true; btn.innerText = "등록 중...";
+      try {
+        const res = await fetch('/api/board', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: contentHTML, admin_key: adminKeyInput.value.trim(), password: authorPwdInput.value.trim() }) });
+        if (!res.ok) throw new Error("게시글 등록에 실패했습니다.");
+        quill.root.innerHTML = ''; adminKeyInput.value = ''; authorPwdInput.value = '';
         await fetchBoardPosts(); 
-        
-      } catch (error) {
-        alert(error.message);
-      } finally {
-        btn.disabled = false;
-        btn.innerText = "글 등록하기";
-      }
+      } catch (error) { alert(error.message); } finally { btn.disabled = false; btn.innerText = "글 등록하기"; }
     }
   
 </script>
