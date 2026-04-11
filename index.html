@@ -1097,20 +1097,21 @@ textarea, input {
     document.addEventListener('dragstart', function(e) { if (e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') { e.preventDefault(); } });
 
 // ================== 익명게시판 통신 로직 ==================
-    // 💡 1. 스마트에디터(Quill) 초기화 세팅
     let quill;
+    let boardPostsData = []; // 게시글 데이터를 임시 보관할 배열
+    let editQuillInstances = {}; // 개별 수정 에디터들을 보관할 객체
+
     window.addEventListener('DOMContentLoaded', () => {
-      // (기존 DOMContentLoaded 내용들... setupDragAndDrop 등은 그대로 두시고, 그 밑에 아래 내용 추가)
       if (document.getElementById('board-editor')) {
         quill = new Quill('#board-editor', {
           theme: 'snow',
           placeholder: '나누고 싶은 이야기를 편하게 적어주세요...',
           modules: {
             toolbar: [
-              ['bold', 'italic', 'underline', 'strike'],        // 글꼴 서식
-              [{ 'color': [] }, { 'background': [] }],          // 글자색, 배경색
-              [{ 'list': 'ordered'}, { 'list': 'bullet' }],     // 리스트
-              ['clean']                                         // 서식 지우기
+              ['bold', 'italic', 'underline', 'strike'],        
+              [{ 'color': [] }, { 'background': [] }],          
+              [{ 'list': 'ordered'}, { 'list': 'bullet' }],     
+              ['clean']                                         
             ]
           }
         });
@@ -1124,21 +1125,41 @@ textarea, input {
         if (!response.ok) throw new Error('불러오기 실패');
         
         const posts = await response.json();
+        boardPostsData = posts; // 수정 모드에서 원본 내용을 가져오기 위해 저장
+        editQuillInstances = {}; // 새로고침 시 기존 에디터 인스턴스 초기화
         
         if (posts.length === 0) {
           listContainer.innerHTML = `<div class="p-10 text-center text-slate-400 font-bold bg-white rounded-3xl border border-dashed border-gray-200">첫 번째 글의 주인공이 되어보세요! 🎉</div>`;
           return;
         }
 
-        // 💡 2. 꾸며진 텍스트(HTML)를 화면에 그대로 보여주도록 렌더링 방식 수정
         listContainer.innerHTML = posts.map(post => `
-          <div class="bg-white p-6 rounded-2xl shadow-sm border ${post.is_announcement ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-200'} transition-all hover:shadow-md relative">
-            <button onclick="deleteBoardPost(${post.id})" class="absolute top-4 right-4 text-slate-300 hover:text-rose-500 transition-colors z-10" title="게시글 삭제">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            </button>
+          <div id="post-container-${post.id}" class="bg-white p-6 rounded-2xl shadow-sm border ${post.is_announcement ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-200'} transition-all hover:shadow-md relative">
+            
+            <div class="absolute top-4 right-4 flex space-x-3 z-10">
+              <button onclick="openEditMode(${post.id})" class="text-slate-300 hover:text-indigo-500 transition-colors" title="게시글 수정">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+              </button>
+              <button onclick="deleteBoardPost(${post.id})" class="text-slate-300 hover:text-rose-500 transition-colors" title="게시글 삭제">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </button>
+            </div>
+
             ${post.is_announcement ? `<div class="mb-3"><span class="bg-indigo-600 text-white text-[10px] font-black px-2.5 py-1 rounded shadow-sm uppercase tracking-widest">Notice</span></div>` : ''}
             
-            <div class="ql-snow"><div class="ql-editor !p-0 text-sm text-slate-800 leading-relaxed font-medium" style="min-height: auto;">${post.content}</div></div>
+            <div id="view-mode-${post.id}">
+              <div class="ql-snow"><div class="ql-editor !p-0 text-sm text-slate-800 leading-relaxed font-medium" style="min-height: auto;">${post.content}</div></div>
+            </div>
+
+            <div id="edit-mode-${post.id}" class="hidden mt-2">
+              <div class="border border-indigo-200 rounded-xl overflow-hidden mb-3 shadow-inner">
+                <div id="edit-editor-${post.id}" style="height: 150px; background-color: white; border: none;"></div>
+              </div>
+              <div class="flex justify-end space-x-2">
+                <button onclick="cancelEditMode(${post.id})" class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">취소</button>
+                <button onclick="saveEditPost(${post.id})" class="px-4 py-2 text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg shadow-md transition-colors">저장하기</button>
+              </div>
+            </div>
             
             <div class="text-[11px] text-slate-400 mt-4 font-mono">${new Date(post.created_at).toLocaleString('ko-KR')}</div>
           </div>
@@ -1148,7 +1169,67 @@ textarea, input {
       }
     }
 
-    // (deleteBoardPost 함수는 이전과 동일하게 유지)
+    // 💡 수정 모드 켜기
+    function openEditMode(postId) {
+      document.getElementById(`view-mode-${postId}`).classList.add('hidden');
+      document.getElementById(`edit-mode-${postId}`).classList.remove('hidden');
+      
+      // 에디터가 아직 생성되지 않았다면 초기화
+      if (!editQuillInstances[postId]) {
+        editQuillInstances[postId] = new Quill(`#edit-editor-${postId}`, {
+          theme: 'snow',
+          modules: {
+            toolbar: [
+              ['bold', 'italic', 'underline', 'strike'],
+              [{ 'color': [] }, { 'background': [] }],
+              ['clean']
+            ]
+          }
+        });
+      }
+      
+      // 원본 텍스트를 에디터 안에 채워넣기
+      const post = boardPostsData.find(p => p.id === postId);
+      if (post) {
+        editQuillInstances[postId].root.innerHTML = post.content;
+      }
+    }
+
+    // 💡 수정 모드 끄기 (취소)
+    function cancelEditMode(postId) {
+      document.getElementById(`edit-mode-${postId}`).classList.add('hidden');
+      document.getElementById(`view-mode-${postId}`).classList.remove('hidden');
+    }
+
+    // 💡 수정한 내용 저장하기
+    async function saveEditPost(postId) {
+      const secretKey = prompt("게시글을 수정하려면 작성 시 입력한 비밀번호(또는 관리자 키)를 입력하세요:");
+      if (!secretKey) return;
+
+      const newContentText = editQuillInstances[postId].getText().trim();
+      const newContentHTML = editQuillInstances[postId].root.innerHTML;
+
+      if (!newContentText) return alert("수정할 내용을 입력해주세요.");
+
+      try {
+        const response = await fetch('/api/board', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: postId, content: newContentHTML, secret_key: secretKey })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || "수정에 실패했습니다.");
+        }
+
+        alert("게시글이 성공적으로 수정되었습니다.");
+        fetchBoardPosts(); // 수정 완료 후 목록 새로고침
+      } catch (error) {
+        alert("🚨 " + error.message);
+      }
+    }
+
     async function deleteBoardPost(postId) {
       const secretKey = prompt("게시글을 삭제하려면 작성 시 입력한 비밀번호(또는 관리자 키)를 입력하세요:");
       if (!secretKey) return; 
@@ -1173,9 +1254,8 @@ textarea, input {
     }
 
     async function submitBoardPost() {
-      // 💡 3. textarea의 value 대신 스마트에디터(Quill)의 내용(HTML)을 가져옵니다.
-      const contentText = quill.getText().trim(); // 빈칸 검사용 순수 텍스트
-      const contentHTML = quill.root.innerHTML;   // 서식이 포함된 실제 저장용 HTML
+      const contentText = quill.getText().trim(); 
+      const contentHTML = quill.root.innerHTML;   
       
       const adminKeyInput = document.getElementById('board-admin-key');
       const authorPwdInput = document.getElementById('board-author-pwd');
@@ -1193,13 +1273,11 @@ textarea, input {
         const response = await fetch('/api/board', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // content에 contentHTML을 담아서 보냅니다.
           body: JSON.stringify({ content: contentHTML, admin_key: adminKey, password: authorPwd })
         });
 
         if (!response.ok) throw new Error("게시글 등록에 실패했습니다.");
 
-        // 성공 시 에디터와 비밀번호 칸 비우기
         quill.root.innerHTML = '';
         adminKeyInput.value = '';
         authorPwdInput.value = '';
