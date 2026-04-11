@@ -316,8 +316,12 @@ textarea, input {
 
     <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 mb-8">
       <textarea id="board-content" class="w-full p-4 bg-slate-50/50 border border-gray-200 rounded-2xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all text-sm resize-none h-28" placeholder="나누고 싶은 이야기를 편하게 적어주세요..."></textarea>
-      <div class="flex justify-between items-center mt-4 pt-2 border-t border-gray-100">
-        <input type="password" id="board-admin-key" placeholder="관리자 키 (공지 작성용)" class="p-3 bg-slate-50/50 text-xs border border-gray-200 rounded-xl outline-none w-48 focus:border-indigo-500 transition-all">
+      
+      <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+        <div class="flex space-x-2">
+          <input type="password" id="board-author-pwd" placeholder="글 비밀번호 (삭제용)" class="p-3 bg-slate-50/50 text-xs border border-gray-200 rounded-xl outline-none w-36 focus:border-indigo-500 transition-all">
+          <input type="password" id="board-admin-key" placeholder="관리자 키 (공지용)" class="p-3 bg-slate-50/50 text-xs border border-gray-200 rounded-xl outline-none w-36 focus:border-indigo-500 transition-all">
+        </div>
         <button onclick="submitBoardPost()" id="btn-submit-board" class="px-8 py-3 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-all active:scale-95 shadow-md">글 등록하기</button>
       </div>
     </div>
@@ -1119,15 +1123,15 @@ textarea, input {
 
     // 💡 새로 추가됨: 삭제 버튼을 눌렀을 때 실행되는 함수
     async function deleteBoardPost(postId) {
-      // 팝업창을 띄워 관리자 비밀번호를 묻습니다.
-      const adminKey = prompt("게시글을 삭제하려면 관리자 비밀번호를 입력하세요:");
-      if (!adminKey) return; // 취소를 누르거나 빈칸이면 종료
+      // 💡 문구 변경: 작성자 비밀번호도 입력 가능하도록 안내
+      const secretKey = prompt("게시글을 삭제하려면 작성 시 입력한 비밀번호(또는 관리자 키)를 입력하세요:");
+      if (!secretKey) return; 
 
       try {
         const response = await fetch('/api/board', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: postId, admin_key: adminKey })
+          body: JSON.stringify({ id: postId, secret_key: secretKey }) // secret_key로 통합해서 전송
         });
 
         if (!response.ok) {
@@ -1136,19 +1140,22 @@ textarea, input {
         }
 
         alert("게시글이 성공적으로 삭제되었습니다.");
-        fetchBoardPosts(); // 삭제 후 게시글 목록 새로고침
+        fetchBoardPosts(); 
         
       } catch (error) {
         alert("🚨 " + error.message);
       }
     }
+
     async function submitBoardPost() {
       const contentInput = document.getElementById('board-content');
       const adminKeyInput = document.getElementById('board-admin-key');
+      const authorPwdInput = document.getElementById('board-author-pwd'); // 새로 추가된 부분
       const btn = document.getElementById('btn-submit-board');
       
       const content = contentInput.value.trim();
       const adminKey = adminKeyInput.value.trim();
+      const authorPwd = authorPwdInput.value.trim(); // 새로 추가된 부분
 
       if (!content) return alert("내용을 입력해주세요.");
 
@@ -1159,14 +1166,15 @@ textarea, input {
         const response = await fetch('/api/board', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: content, admin_key: adminKey })
+          // 💡 서버로 password 정보도 함께 보냅니다.
+          body: JSON.stringify({ content: content, admin_key: adminKey, password: authorPwd })
         });
 
         if (!response.ok) throw new Error("게시글 등록에 실패했습니다.");
 
-        // 성공 시 입력창 비우고 새로고침
         contentInput.value = '';
         adminKeyInput.value = '';
+        authorPwdInput.value = ''; // 작성 완료 시 비밀번호 칸도 비움
         await fetchBoardPosts(); 
         
       } catch (error) {
