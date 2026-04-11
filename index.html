@@ -1207,10 +1207,7 @@ textarea, input {
           <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-100">
              <p class="text-sm text-slate-800 font-medium break-all">${root.content}</p>
              <div class="flex items-center gap-3 mt-2">
-                // root.created_at 출력 부분 수정
-<span class="text-[10px] text-slate-400">
-  ${new Date(root.created_at + (root.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-</span>
+                <span class="text-[10px] text-slate-400">${new Date(root.created_at).toLocaleString('ko-KR')}</span>
                 <button onclick="document.getElementById('reply-input-${root.id}').classList.toggle('hidden')" class="text-[10px] font-bold text-indigo-500 hover:text-indigo-700">답글 쓰기</button>
                 <button onclick="deleteComment(${root.id}, ${postId})" class="text-[10px] font-bold text-rose-400 hover:text-rose-600">삭제</button>
              </div>
@@ -1224,10 +1221,7 @@ textarea, input {
                    <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
                       <p class="text-xs text-slate-700 font-medium break-all">${reply.content}</p>
                       <div class="flex items-center gap-3 mt-2">
-                         // reply.created_at 출력 부분 수정
-<span class="text-[10px] text-slate-400">
-  ${new Date(reply.created_at + (reply.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-</span>
+                         <span class="text-[10px] text-slate-400">${new Date(reply.created_at).toLocaleString('ko-KR')}</span>
                          <button onclick="deleteComment(${reply.id}, ${postId})" class="text-[10px] font-bold text-rose-400 hover:text-rose-600">삭제</button>
                       </div>
                    </div>
