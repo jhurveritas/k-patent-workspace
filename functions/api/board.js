@@ -10,12 +10,10 @@ export async function onRequest(context) {
   const isAllowedOrigin = allowedOrigins.includes(origin);
 
   const corsHeaders = {
-    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS", // 💡 DELETE 메서드 허용 추가
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
-  if (isAllowedOrigin) {
-    corsHeaders["Access-Control-Allow-Origin"] = origin;
-  }
+  if (isAllowedOrigin) corsHeaders["Access-Control-Allow-Origin"] = origin;
 
   if (context.request.method === "OPTIONS") {
     if (isAllowedOrigin) return new Response(null, { headers: corsHeaders });
@@ -23,74 +21,63 @@ export async function onRequest(context) {
   }
 
   const db = context.env.DB;
-  if (!db) {
-    return new Response(JSON.stringify({ error: "데이터베이스(D1)가 연결되지 않았습니다." }), { 
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } 
-    });
-  }
+  if (!db) return new Response(JSON.stringify({ error: "DB 연결 안됨" }), { status: 500, headers: corsHeaders });
 
   try {
-    // =========================================================
-    // [GET] 게시글 불러오기
-    // =========================================================
+    // [GET] 불러오기
     if (context.request.method === "GET") {
-      const { results } = await db.prepare(`
-        SELECT * FROM posts 
-        ORDER BY is_announcement DESC, created_at DESC 
-        LIMIT 50
-      `).all();
-      return new Response(JSON.stringify(results), { 
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      });
+      // 보안상 비밀번호는 빼고 프론트엔드로 보냅니다.
+      const { results } = await db.prepare("SELECT id, content, is_announcement, created_at FROM posts ORDER BY is_announcement DESC, created_at DESC LIMIT 50").all();
+      return new Response(JSON.stringify(results), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // =========================================================
-    // [POST] 게시글 등록하기
-    // =========================================================
+    // [POST] 글 작성 (비밀번호 저장 추가)
     if (context.request.method === "POST") {
       const body = await context.request.json();
       const content = body.content;
       const adminKey = body.admin_key;
+      const password = body.password || null; // 작성자 비밀번호
 
-      if (!content || content.trim() === "") {
-        return new Response(JSON.stringify({ error: "내용이 비어 있습니다." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      if (!content || content.trim() === "") return new Response(JSON.stringify({ error: "내용 없음" }), { status: 400, headers: corsHeaders });
 
       const expectedAdminKey = context.env.ADMIN_KEY;
       const isAnnouncement = (expectedAdminKey && adminKey === expectedAdminKey) ? 1 : 0;
 
-      await db.prepare("INSERT INTO posts (content, is_announcement) VALUES (?, ?)").bind(content, isAnnouncement).run();
-
-      return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      // DB에 password 변수도 함께 INSERT
+      await db.prepare("INSERT INTO posts (content, is_announcement, password) VALUES (?, ?, ?)").bind(content, isAnnouncement, password).run();
+      return new Response(JSON.stringify({ success: true }), { status: 200, headers: corsHeaders });
     }
 
-    // =========================================================
-    // 🗑️ [DELETE] 게시글 삭제하기 (추가된 부분)
-    // =========================================================
+    // [DELETE] 글 삭제 (권한 검사 추가)
     if (context.request.method === "DELETE") {
       const body = await context.request.json();
       const id = body.id;
-      const adminKey = body.admin_key;
+      const inputSecret = body.secret_key; // 프론트에서 보낸 비밀번호(또는 관리자키)
       const expectedAdminKey = context.env.ADMIN_KEY;
 
-      // 비밀번호가 틀리거나 없으면 거절
-      if (!expectedAdminKey || adminKey !== expectedAdminKey) {
-        return new Response(JSON.stringify({ error: "관리자 비밀번호가 틀립니다." }), { 
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        });
+      // 1. 해당 글의 실제 비밀번호를 DB에서 가져옵니다.
+      const post = await db.prepare("SELECT password FROM posts WHERE id = ?").bind(id).first();
+      
+      if (!post) {
+        return new Response(JSON.stringify({ error: "게시글을 찾을 수 없습니다." }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // 비밀번호가 맞으면 해당 ID의 글 삭제
-      await db.prepare("DELETE FROM posts WHERE id = ?").bind(id).run();
+      // 2. 권한 확인: 입력한 키가 '관리자 키'이거나 '글 작성 시 입력한 비밀번호'인지 체크
+      const isAdmin = (expectedAdminKey && inputSecret === expectedAdminKey);
+      const isAuthor = (post.password && inputSecret === post.password);
 
-      return new Response(JSON.stringify({ success: true }), { 
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      });
+      if (!isAdmin && !isAuthor) {
+        return new Response(JSON.stringify({ error: "비밀번호가 일치하지 않거나 권한이 없습니다." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // 3. 권한이 확인되면 삭제
+      await db.prepare("DELETE FROM posts WHERE id = ?").bind(id).run();
+      return new Response(JSON.stringify({ success: true }), { status: 200, headers: corsHeaders });
     }
 
-    return new Response(JSON.stringify({ error: "잘못된 요청 방식입니다." }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "잘못된 요청" }), { status: 405, headers: corsHeaders });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: "서버 에러: " + err.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "서버 에러: " + err.message }), { status: 500, headers: corsHeaders });
   }
 }
