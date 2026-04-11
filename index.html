@@ -1101,8 +1101,12 @@ textarea, input {
           return;
         }
 
+        // 💡 수정됨: relative 속성을 추가하고, 우측 상단에 휴지통(X) 버튼을 추가했습니다.
         listContainer.innerHTML = posts.map(post => `
-          <div class="bg-white p-6 rounded-2xl shadow-sm border ${post.is_announcement ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-200'} transition-all hover:shadow-md">
+          <div class="bg-white p-6 rounded-2xl shadow-sm border ${post.is_announcement ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-200'} transition-all hover:shadow-md relative">
+            <button onclick="deleteBoardPost(${post.id})" class="absolute top-4 right-4 text-slate-300 hover:text-rose-500 transition-colors" title="게시글 삭제">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
             ${post.is_announcement ? `<div class="mb-3"><span class="bg-indigo-600 text-white text-[10px] font-black px-2.5 py-1 rounded shadow-sm uppercase tracking-widest">Notice</span></div>` : ''}
             <p class="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed font-medium">${post.content}</p>
             <div class="text-[11px] text-slate-400 mt-4 font-mono">${new Date(post.created_at).toLocaleString('ko-KR')}</div>
@@ -1113,6 +1117,31 @@ textarea, input {
       }
     }
 
+    // 💡 새로 추가됨: 삭제 버튼을 눌렀을 때 실행되는 함수
+    async function deleteBoardPost(postId) {
+      // 팝업창을 띄워 관리자 비밀번호를 묻습니다.
+      const adminKey = prompt("게시글을 삭제하려면 관리자 비밀번호를 입력하세요:");
+      if (!adminKey) return; // 취소를 누르거나 빈칸이면 종료
+
+      try {
+        const response = await fetch('/api/board', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: postId, admin_key: adminKey })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || "삭제에 실패했습니다.");
+        }
+
+        alert("게시글이 성공적으로 삭제되었습니다.");
+        fetchBoardPosts(); // 삭제 후 게시글 목록 새로고침
+        
+      } catch (error) {
+        alert("🚨 " + error.message);
+      }
+    }
     async function submitBoardPost() {
       const contentInput = document.getElementById('board-content');
       const adminKeyInput = document.getElementById('board-admin-key');
