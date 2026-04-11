@@ -1067,7 +1067,7 @@ textarea, input {
       });
     }
 
-// 💡 [추가] 최초 명세서에서 청구항만 쏙 뽑아오는 자동 추출 함수
+// 💡 [수정됨] 최초 명세서에서 청구항만 쏙 뽑아오는 자동 추출 함수 (HLZ XML 태그 지원)
     function extractClaimsFromSpec() {
       const specText = document.getElementById('oa-original-spec').value;
       
@@ -1077,17 +1077,17 @@ textarea, input {
         return;
       }
 
-      // 2. 한국/미국/유럽 등 특허 문서의 청구범위 시작 키워드 찾기 (정규식 패턴 매칭)
-      // 【특허청구의 범위】, 【청구범위】, 【청구항 1】, [청구항 1], Claims, What is claimed is 등 대응
-      const regex = /([【\[](특허청구의 범위|청구범위|청구항\s*1)[】\]])|(What is claimed is|We claim|Claims\s*:)/i;
+      // 2. 청구범위 시작 키워드 찾기
+      // 【특허청구의 범위】, 【청구범위】, 【청구항 1】, Claims, What is claimed is, 그리고 XML <claims> 태그 대응
+      const regex = /([【\[](특허청구의 범위|청구범위|청구항\s*1)[】\]])|(What is claimed is|We claim|Claims\s*:)|(<claims>)/i;
       const match = specText.match(regex);
 
       if (match) {
         // 매칭된 부분부터 끝까지 잘라냄
         let claimsText = specText.substring(match.index);
         
-        // 만약 청구항 뒤에 요약서(Abstract)가 붙어있다면 그 앞까지만 잘라냄
-        const summaryMatch = claimsText.match(/([【\[]요약서[】\]])|(Abstract\s*:)/i);
+        // 만약 청구항 뒤에 요약서가 붙어있다면 그 앞까지만 잘라냄 (XML <abstract> 태그 지원 추가)
+        const summaryMatch = claimsText.match(/([【\[]요약서[】\]])|(Abstract\s*:)|(<abstract>)/i);
         if (summaryMatch && summaryMatch.index > 0) {
           claimsText = claimsText.substring(0, summaryMatch.index);
         }
@@ -1102,7 +1102,7 @@ textarea, input {
         setTimeout(() => pendingArea.classList.remove('bg-indigo-100/50', 'ring-2', 'ring-indigo-400'), 600);
         
       } else {
-        alert('명세서 텍스트에서 청구범위 시작 부분(【청구항 1】 등)을 자동으로 찾지 못했습니다.\n번거로우시겠지만 직접 복사해서 붙여넣어 주세요.');
+        alert('명세서 텍스트에서 청구범위 시작 부분(【청구항 1】 또는 <claims> 등)을 자동으로 찾지 못했습니다.\n번거로우시겠지만 직접 복사해서 붙여넣어 주세요.');
       }
     }
   
