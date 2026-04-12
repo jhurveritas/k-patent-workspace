@@ -1161,6 +1161,14 @@ textarea, input {
     document.addEventListener('dragstart', function(e) { if (e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') { e.preventDefault(); } });
 
 // ================== 익명게시판 통신 로직 ==================
+    // 💡 [추가] 2번 제안: 공통 날짜 포맷 함수 (KST 변환)
+    // 앞으로 날짜를 한국 시간으로 바꿀 때는 formatKST(날짜데이터) 라고만 쓰면 됩니다!
+    function formatKST(dateString) {
+      if (!dateString) return '';
+      const safeString = dateString.includes('Z') ? dateString : dateString + 'Z';
+      return new Date(safeString).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+    }
+
     let quill;
     let boardPostsData = []; 
     let editQuillInstances = {}; 
@@ -1169,11 +1177,17 @@ textarea, input {
       if (document.getElementById('board-editor')) {
         quill = new Quill('#board-editor', {
           theme: 'snow', placeholder: '건의사항 또는 나누고 싶은 이야기를 편하게 적어주세요...',
-          modules: { toolbar: [['bold', 'italic', 'underline', 'strike'], [{ 'color': [] }, { 'background': [] }], [{ 'list': 'ordered'}, { 'list': 'bullet' }], ['clean']] }
+          modules: { 
+            toolbar: [
+              [{ 'size': ['small', false, 'large', 'huge'] }], // 💡 글자 크기 조절 추가
+              ['bold', 'italic', 'underline', 'strike'], 
+              [{ 'color': [] }, { 'background': [] }], 
+              [{ 'list': 'ordered'}, { 'list': 'bullet' }], 
+              ['clean']
+            ] 
+          }
         });
       }
-      
-      // 💡 [추가] 첫 화면이 게시판이므로, 페이지가 열리자마자 글을 불러옵니다!
       fetchBoardPosts();
     });
 
@@ -1210,8 +1224,7 @@ textarea, input {
             
             <div class="flex justify-between items-end mt-4">
                <div class="text-[11px] text-slate-400 mt-4 font-mono">
-  ${new Date(post.created_at + (post.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-</div>
+                  ${formatKST(post.created_at)} </div>
                <button onclick="toggleComments(${post.id})" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors">
                   💬 댓글달기 ${post.comment_count || 0}
                </button>
@@ -1232,11 +1245,9 @@ textarea, input {
       }
     }
 
-    // 💡 댓글 열기/닫기 및 불러오기
     async function toggleComments(postId) {
       const section = document.getElementById(`comments-section-${postId}`);
       if (!section.classList.contains('hidden')) { section.classList.add('hidden'); return; }
-      
       section.classList.remove('hidden');
       await loadComments(postId);
     }
@@ -1255,10 +1266,7 @@ textarea, input {
           <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-100">
              <p class="text-sm text-slate-800 font-medium break-all">${root.content}</p>
              <div class="flex items-center gap-3 mt-2">
-                <span class="text-[10px] text-slate-400">
-                ${new Date(root.created_at + (root.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-</span>
-                <button onclick="document.getElementById('reply-input-${root.id}').classList.toggle('hidden')" class="text-[10px] font-bold text-indigo-500 hover:text-indigo-700">답글 쓰기</button>
+                <span class="text-[10px] text-slate-400">${formatKST(root.created_at)}</span> <button onclick="document.getElementById('reply-input-${root.id}').classList.toggle('hidden')" class="text-[10px] font-bold text-indigo-500 hover:text-indigo-700">답글 쓰기</button>
                 <button onclick="deleteComment(${root.id}, ${postId})" class="text-[10px] font-bold text-rose-400 hover:text-rose-600">삭제</button>
              </div>
              <div id="reply-input-${root.id}" class="hidden mt-3 flex gap-2">
@@ -1271,10 +1279,7 @@ textarea, input {
                    <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
                       <p class="text-xs text-slate-700 font-medium break-all">${reply.content}</p>
                       <div class="flex items-center gap-3 mt-2">
-                         <span class="text-[10px] text-slate-400">
-                         ${new Date(reply.created_at + (reply.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-</span>
-                         <button onclick="deleteComment(${reply.id}, ${postId})" class="text-[10px] font-bold text-rose-400 hover:text-rose-600">삭제</button>
+                         <span class="text-[10px] text-slate-400">${formatKST(reply.created_at)}</span> <button onclick="deleteComment(${reply.id}, ${postId})" class="text-[10px] font-bold text-rose-400 hover:text-rose-600">삭제</button>
                       </div>
                    </div>
                 `).join('')}
@@ -1284,7 +1289,6 @@ textarea, input {
       } catch (e) { listDiv.innerHTML = `<div class="text-xs text-rose-500">댓글 오류</div>`; }
     }
 
-    // 💡 댓글/대댓글 등록
     async function submitComment(postId, parentId) {
       const pwdId = parentId ? `comment-pwd-${parentId}` : `comment-pwd-root-${postId}`;
       const contentId = parentId ? `comment-content-${parentId}` : `comment-content-root-${postId}`;
@@ -1301,12 +1305,11 @@ textarea, input {
         if(!res.ok) throw new Error("등록 실패");
         
         document.getElementById(pwdId).value = ''; document.getElementById(contentId).value = '';
-        await loadComments(postId); // 댓글 부분만 새로고침
-        fetchBoardPosts(); // 바깥쪽 개수 업데이트 위해 전체 새로고침 (백그라운드)
+        await loadComments(postId); 
+        fetchBoardPosts(); 
       } catch(e) { alert(e.message); }
     }
 
-    // 💡 댓글 삭제
     async function deleteComment(commentId, postId) {
       const secretKey = prompt("댓글을 삭제하려면 비밀번호(또는 관리자 키)를 입력하세요:");
       if (!secretKey) return;
@@ -1321,12 +1324,21 @@ textarea, input {
       } catch(e) { alert(e.message); }
     }
 
-    // (기존 게시글 수정/삭제/등록 함수들 유지)
     function openEditMode(postId) {
       document.getElementById(`view-mode-${postId}`).classList.add('hidden');
       document.getElementById(`edit-mode-${postId}`).classList.remove('hidden');
       if (!editQuillInstances[postId]) {
-        editQuillInstances[postId] = new Quill(`#edit-editor-${postId}`, { theme: 'snow', modules: { toolbar: [['bold', 'italic', 'underline', 'strike'], [{ 'color': [] }, { 'background': [] }], ['clean']] } });
+        editQuillInstances[postId] = new Quill(`#edit-editor-${postId}`, { 
+          theme: 'snow', 
+          modules: { 
+            toolbar: [
+              [{ 'size': ['small', false, 'large', 'huge'] }], // 💡 수정 화면에도 글자 크기 조절 추가
+              ['bold', 'italic', 'underline', 'strike'], 
+              [{ 'color': [] }, { 'background': [] }], 
+              ['clean']
+            ] 
+          } 
+        });
       }
       const post = boardPostsData.find(p => p.id === postId);
       if (post) editQuillInstances[postId].root.innerHTML = post.content;
@@ -1353,7 +1365,7 @@ textarea, input {
         fetchBoardPosts(); 
       } catch (e) { alert(e.message); }
     }
-  // 💡 화면 전환용 함수 2개 추가
+
     function openWriteMode() {
       document.getElementById('board-list-view').classList.add('hidden');
       document.getElementById('board-write-view').classList.remove('hidden');
@@ -1365,13 +1377,11 @@ textarea, input {
       document.getElementById('board-write-view').classList.remove('flex');
       document.getElementById('board-list-view').classList.remove('hidden');
       
-      // 취소하고 나갈 때 작성하던 내용 비우기
       if(quill) quill.root.innerHTML = '';
       document.getElementById('board-admin-key').value = '';
       document.getElementById('board-author-pwd').value = '';
     }
 
-    // 💡 기존 submitBoardPost 함수 끝부분 수정
     async function submitBoardPost() {
       const contentText = quill.getText().trim(); 
       const contentHTML = quill.root.innerHTML;   
@@ -1390,8 +1400,7 @@ textarea, input {
         });
         if (!res.ok) throw new Error("게시글 등록에 실패했습니다.");
         
-        // 성공 후 화면 전환 및 목록 새로고침
-        closeWriteMode(); // ⬅️ 작성 성공 시 목록 화면으로 돌아가는 함수 호출
+        closeWriteMode(); 
         await fetchBoardPosts(); 
       } catch (error) { 
         alert(error.message); 
