@@ -206,14 +206,19 @@ export async function onRequest(context) {
           else if (requestBody.type === 'oa_review') {
             const { targetCountry, originalSpecification, officeAction, pendingClaims, amendedClaims, userDraftResponse } = requestBody.data;
             
+            // 💡 [해결 로직 추가] 정규식을 사용하여 XML/HTML 태그를 모두 제거하고 다중 공백을 하나로 압축합니다.
+            const cleanSpec = originalSpecification ? originalSpecification.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+            const cleanPending = pendingClaims ? pendingClaims.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+            const cleanAmended = amendedClaims ? amendedClaims.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+
             const prompt = `너는 ${targetCountry} 특허법 및 심사실무에 능통한 최고 수준의 특허 명세사야. 
             아래 제공된 분석 자료들을 바탕으로 아래 지시사항과 같은 분석을 해주고, 반드시 아래 JSON 형식으로만 응답해줘.
             
             [분석 자료]
             - 대상 국가: ${targetCountry}
-            - 최초명세서: ${originalSpecification}
-            - 계류중 청구항: ${pendingClaims}
-            - 보정 후 청구항: ${amendedClaims}
+            - 최초명세서: ${cleanSpec}
+            - 계류중 청구항: ${cleanPending}
+            - 보정 후 청구항: ${cleanAmended}
             - 대응 초안(핵심 논리): ${userDraftResponse}
 
             [지시사항]
