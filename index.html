@@ -969,18 +969,29 @@ textarea, input {
       const statusSpan = document.getElementById('compare-status');
       let isFirstChunk = true;
 
+      let accumulatedText = ""; 
+
       try { 
         await streamFetchGemini('/api/gemini', { type: 'compare', data: { krText, enText } }, (textChunk) => {
           if (isFirstChunk) {
               isFirstChunk = false;
-              outputDiv.innerHTML = ""; // 처음 시작할 때 로딩 잔여물 제거
+              outputDiv.innerHTML = ""; 
               statusSpan.innerText = "답변 출력 중 ✍️";
               statusSpan.classList.remove('animate-pulse');
           }
           
-          // 💡 [치명적 오류 방어] 특허청구항의 < > 기호가 HTML 태그로 인식되어 투명해지는 현상 완벽 차단!
-          const safeChunk = textChunk.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          outputDiv.innerHTML += safeChunk;
+          // 1. 조각난 텍스트를 화면에 바로 붙이지 않고 바구니에 차곡차곡 모읍니다.
+          accumulatedText += textChunk;
+          
+          // 2. 모인 텍스트 전체에서 < > 기호를 안전하게 무력화시키고, 동시에 예쁜 UI 뱃지로 변환합니다.
+          let safeHTML = accumulatedText
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>')
+              .replace(/### (.*)/g, '<br><h3 class="text-[15px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg inline-block mt-4 mb-2">$1</h3>');
+          
+          // 3. 안전하게 변환된 최종 HTML을 화면에 덮어씌웁니다. (+= 가 아니라 = 를 사용)
+          outputDiv.innerHTML = safeHTML;
           
           // 스크롤을 항상 맨 아래로 유지
           const scrollContainer = outputDiv.parentElement;
@@ -989,15 +1000,9 @@ textarea, input {
         
         statusSpan.innerText = "✅ 검증 완료";
         statusSpan.className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg";
-        
-        // 💡 [UI 성형수술] 텍스트 출력이 모두 끝나면, 밋밋한 기호(**, ###)를 예쁜 디자인 뱃지로 변환해줍니다!
-        outputDiv.innerHTML = outputDiv.innerHTML
-            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>') // **강조**를 예쁜 라벨로
-            .replace(/### (.*)/g, '<br><h3 class="text-[15px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg inline-block mt-4 mb-2">$1</h3>'); // ### 제목을 눈에 띄는 박스로
-
         gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'success' });
 
-      } catch (e) {
+      } catch (e) { 
         console.error("대조기 스트리밍 에러:", e);
         gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'error', 'error_message': e.message });
         
@@ -1008,7 +1013,6 @@ textarea, input {
         btn.disabled = false; 
         btn.innerText = "교차 검증 실행"; 
       }
-    }
 
     // ================== 국가별 OA 논리 검토기 ==================
     let oaState = { country: 'KR', officeActionFile: null };
