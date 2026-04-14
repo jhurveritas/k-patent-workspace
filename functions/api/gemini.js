@@ -85,32 +85,46 @@ export async function onRequest(context) {
         try {
           let geminiPayload = requestBody;
 
-          // 🛡️ [청구항 대조기]
-          if (requestBody.type === 'compare') {
+          // 🛡️ [청구항 대조기 1: 번역 검토 전용]
+          if (requestBody.type === 'compare_translation') {
             const { krText, enText } = requestBody.data;
             const systemInstruction = `
-              당신은 한국 특허 실무와 글로벌(USPTO/EPO) 특허 표준을 모두 꿰뚫고 있는 세계 최고 수준의 기술 번역 전문가입니다.
-              당신의 임무는 한국어 특허 청구항의 영문 번역본을 분석하여 정확성, 법적 효력, 기술적 일관성을 검증하는 것입니다.
+              당신은 세계 최고 수준의 특허 기술 번역 전문가입니다.
+              당신의 임무는 한국어 특허 청구항 원문과 영문 번역본을 대조하여 오로지 '번역의 정확성'만 검증하는 것입니다.
 
-              [출력 지시사항 - 매우 중요]
-              1. JSON이 아닌, 읽기 편한 일반 마크다운(Markdown) 형식으로 작성하십시오.
+              [출력 지시사항]
+              1. 영문 기재불비(명확성 등)는 무시하고, 오로지 '번역 누락', '오역', '권리 범위가 달라지는 번역 오류'만 집중적으로 찾으십시오.
               2. 문제가 없는 정상적인 청구항은 분석을 생략하십시오.
-              3. 오역, 권리 범위 불일치, 누락이 발생한 청구항만 번호를 명시하고, [발생 위치], [문제 진단], [수정 권고안]을 정리하여 즉시 출력하십시오.
-
-              🚨 [시스템 긴급 지시사항 - 타임아웃 방지] 🚨
-              전체 청구항을 다 읽고 분석을 끝낼 때까지 절대로 침묵하며 기다리지 마십시오.
-              무조건 "🔍 **한/영 청구항 교차 검증을 시작합니다...**\n\n" 라는 문장을 최우선으로 0.1초 만에 즉시 출력하십시오. 
-              반드시 이 안내 문구를 먼저 뱉어낸 후에, 1번 청구항부터 순차적으로 읽어 내려가며 본문 작성을 이어가십시오.
+              3. 오류가 발견된 청구항만 번호를 명시하고, [발생 위치], [문제 진단(오역/누락 등)], [수정 권고안]을 마크다운 형식으로 작성하십시오.
             `;
             const promptText = `KOREAN CLAIM (한국어 원문):\n${krText}\n\nENGLISH TRANSLATION (영문 번역본):\n${enText}`;
 
             geminiPayload = { 
               systemInstruction: { parts: [{ text: systemInstruction }] },
               contents: [{ role: "user", parts: [{ text: promptText }] }], 
-              generationConfig: { 
-                temperature: 0.1,
-                maxOutputTokens: 8912
-              } 
+              generationConfig: { temperature: 0.1, maxOutputTokens: 8192 } 
+            };
+          }
+          
+          // 🛡️ [청구항 대조기 2: 기재불비 검토 전용]
+          else if (requestBody.type === 'compare_deficiency') {
+            const { krText, enText } = requestBody.data;
+            const systemInstruction = `
+              당신은 미국(USPTO) 및 유럽(EPO) 특허 실무에 능통한 최고 수준의 특허 변리사입니다.
+              당신의 임무는 영문 특허 청구항을 분석하여 '법적/논리적 기재불비' 요소를 검증하는 것입니다.
+
+              [출력 지시사항]
+              1. 단순 번역 오류는 무시하고, 영문 청구항 자체의 '선행사 불일치(Antecedent basis 결여)', '불명확성(Clarity/Indefiniteness, 35 U.S.C 112)', '다중종속항 형식 오류' 등 기재불비 요소만 집중적으로 찾으십시오.
+              2. 한국어 원문은 영문 청구항의 기술적 의도를 파악하기 위한 참고용으로만 사용하십시오.
+              3. 문제가 없는 정상적인 청구항은 분석을 생략하십시오.
+              4. 오류가 발견된 청구항만 번호를 명시하고, [발생 위치], [기재불비 근거(예: 선행사 누락)], [수정 권고안]을 마크다운 형식으로 작성하십시오.
+            `;
+            const promptText = `KOREAN CLAIM (의도 파악 참고용):\n${krText}\n\nENGLISH TRANSLATION (기재불비 검토 대상):\n${enText}`;
+
+            geminiPayload = { 
+              systemInstruction: { parts: [{ text: systemInstruction }] },
+              contents: [{ role: "user", parts: [{ text: promptText }] }], 
+              generationConfig: { temperature: 0.1, maxOutputTokens: 8192 } 
             };
           }
           
