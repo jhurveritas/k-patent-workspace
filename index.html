@@ -201,11 +201,17 @@ textarea, input {
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
           <h2 class="text-2xl font-bold text-slate-900 tracking-tight">한/영 청구항 대조 분석</h2>
-          <p class="text-slate-500 mt-1 text-sm">한국어 청구항 원문과 영문 번역본 교차 검증 및 기재불비 검토</p>
+          <p class="text-slate-500 mt-1 text-sm">한국어 원문과 영문 번역본을 대조하여 원하는 항목을 검토하세요.</p>
         </div>
         <div class="flex items-center space-x-3 w-full md:w-auto">
           <button onclick="clearCompareInputs()" class="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">전체 삭제</button>
-          <button id="btn-run-compare" onclick="runCompare()" class="px-8 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg bg-indigo-600 hover:bg-indigo-700 transition-colors active:scale-95">교차 검증 실행</button>
+          
+          <button id="btn-run-trans" onclick="runCompare('trans')" class="px-6 py-2.5 text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors active:scale-95 flex items-center">
+            🌐 번역 검토
+          </button>
+          <button id="btn-run-def" onclick="runCompare('def')" class="px-6 py-2.5 text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors active:scale-95 flex items-center">
+            ⚖️ 기재불비 검토
+          </button>
         </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -215,10 +221,7 @@ textarea, input {
     </div>
     
     <div id="compare-result-container" class="hidden mt-4 animate-fadeIn w-full">
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full">
-        <div id="compare-result-content-trans" class="w-full"></div>
-        <div id="compare-result-content-def" class="w-full"></div>
-      </div>
+      <div id="compare-result-content" class="w-full"></div>
     </div>
   </main>
 
@@ -943,117 +946,86 @@ textarea, input {
     }
     function resetIDS() { idsState = { historyFiles: [], targetFiles: [] }; document.getElementById('manualRefsText').value=''; document.getElementById('historyFileList').innerHTML=''; document.getElementById('targetFileList').innerHTML=''; document.getElementById('ids-empty-state').classList.remove('hidden'); document.getElementById('ids-results-container').classList.add('hidden'); }
 
-   // ================== 대조기 로직 (병렬 처리) ==================
+   // ================== 대조기 로직 (선택형 단일 처리) ==================
     function clearCompareInputs() { 
       document.getElementById('kr-claim-input').value = ''; 
       document.getElementById('en-claim-input').value = ''; 
       document.getElementById('compare-result-container').classList.add('hidden'); 
-      document.getElementById('compare-result-content-trans').innerHTML = ''; 
-      document.getElementById('compare-result-content-def').innerHTML = ''; 
+      document.getElementById('compare-result-content').innerHTML = ''; 
     }
     
-    async function runCompare() {
+    async function runCompare(mode) {
       const krText = document.getElementById('kr-claim-input').value.trim(); 
       const enText = document.getElementById('en-claim-input').value.trim();
       
       if (!krText || !enText) return alert("양쪽 텍스트를 모두 입력해주세요.");
       
-      const btn = document.getElementById('btn-run-compare'); 
+      const btnTrans = document.getElementById('btn-run-trans');
+      const btnDef = document.getElementById('btn-run-def');
       const resContainer = document.getElementById('compare-result-container');
+      const resContent = document.getElementById('compare-result-content');
       
-      btn.disabled = true; 
-      btn.innerText = "병렬 분석 시작..."; 
+      // 분석 중일 때 두 버튼 모두 클릭 방지
+      btnTrans.disabled = true; btnDef.disabled = true;
+      btnTrans.classList.add('opacity-50'); btnDef.classList.add('opacity-50');
+      
       resContainer.classList.remove('hidden');
       
-      const transContent = document.getElementById('compare-result-content-trans');
-      const defContent = document.getElementById('compare-result-content-def');
+      // 💡 선택한 모드('trans' 또는 'def')에 따른 설정 세팅
+      const isTrans = mode === 'trans';
+      const title = isTrans ? "🌐 번역 정확도 검토" : "⚖️ 영문 기재불비 검토";
+      const color = isTrans ? "indigo" : "rose"; // 번역은 파란색 계열, 기재불비는 붉은색 계열
+      const apiType = isTrans ? "compare_translation" : "compare_deficiency";
       
-      // 💡 1. 번역 검토 UI 초기화
-      transContent.innerHTML = `
+      // UI 동적 초기화
+      resContent.innerHTML = `
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-            <div class="px-8 py-5 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center sticky top-0">
-                <h3 class="font-black text-indigo-900 flex items-center text-lg">🌐 번역 정확도 검토</h3>
-                <span id="compare-status-trans" class="text-xs font-bold text-indigo-600 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 animate-pulse shadow-sm">분석 중...</span>
+            <div class="px-8 py-5 bg-${color}-50 border-b border-${color}-100 flex justify-between items-center sticky top-0">
+                <h3 class="font-black text-${color}-900 flex items-center text-lg">${title}</h3>
+                <span id="compare-status" class="text-xs font-bold text-${color}-600 bg-white px-3 py-1.5 rounded-lg border border-${color}-200 animate-pulse shadow-sm">분석 중...</span>
             </div>
             <div class="p-8 flex-grow overflow-y-auto bg-[#f8fafc]">
-                <div id="compare-text-output-trans" class="select-text text-sm text-slate-800 leading-loose whitespace-pre-wrap font-medium"></div>
+                <div id="compare-text-output" class="select-text text-sm text-slate-800 leading-loose whitespace-pre-wrap font-medium"></div>
             </div>
         </div>`;
         
-      // 💡 2. 기재불비 검토 UI 초기화
-      defContent.innerHTML = `
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-            <div class="px-8 py-5 bg-rose-50 border-b border-rose-100 flex justify-between items-center sticky top-0">
-                <h3 class="font-black text-rose-900 flex items-center text-lg">⚖️ 영문 기재불비 검토</h3>
-                <span id="compare-status-def" class="text-xs font-bold text-rose-600 bg-white px-3 py-1.5 rounded-lg border border-rose-200 animate-pulse shadow-sm">분석 중...</span>
-            </div>
-            <div class="p-8 flex-grow overflow-y-auto bg-[#f8fafc]">
-                <div id="compare-text-output-def" class="select-text text-sm text-slate-800 leading-loose whitespace-pre-wrap font-medium"></div>
-            </div>
-        </div>`;
-      
-      const outputTrans = document.getElementById('compare-text-output-trans');
-      const statusTrans = document.getElementById('compare-status-trans');
-      let accTrans = ""; 
-      let isFirstTrans = true;
+      const outputDiv = document.getElementById('compare-text-output');
+      const statusSpan = document.getElementById('compare-status');
+      let accText = ""; 
+      let isFirst = true;
 
-      const outputDef = document.getElementById('compare-text-output-def');
-      const statusDef = document.getElementById('compare-status-def');
-      let accDef = ""; 
-      let isFirstDef = true;
-
-      // 텍스트 포매팅 공통 함수
-      const formatText = (text, color) => text
+      // 텍스트 포매팅 공통 함수 (테마 색상 동적 적용)
+      const formatText = (text, themeColor) => text
           .replace(/</g, "&lt;").replace(/>/g, "&gt;")
-          .replace(/\*\*(.*?)\*\*/g, `<strong class="text-${color}-700 bg-${color}-50 px-1.5 py-0.5 rounded">$1</strong>`)
+          .replace(/\*\*(.*?)\*\*/g, `<strong class="text-${themeColor}-700 bg-${themeColor}-50 px-1.5 py-0.5 rounded">$1</strong>`)
           .replace(/### (.*)/g, '<br><h3 class="text-[15px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg inline-block mt-4 mb-2">$1</h3>');
 
-      // 🚀 Promise 1: 번역 대조 스트리밍 (즉시 실행)
-      const p1 = streamFetchGemini('/api/gemini', { type: 'compare_translation', data: { krText, enText } }, (chunk) => {
-        if (isFirstTrans) {
-            isFirstTrans = false;
-            statusTrans.innerText = "답변 출력 중 ✍️";
-            statusTrans.classList.remove('animate-pulse');
-        }
-        accTrans += chunk;
-        outputTrans.innerHTML = formatText(accTrans, 'indigo');
-        outputTrans.parentElement.scrollTop = outputTrans.parentElement.scrollHeight;
-      }).then(() => {
-        statusTrans.innerText = "✅ 검증 완료";
-        statusTrans.className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg";
-      }).catch(e => {
-        statusTrans.innerText = "🚨 에러 발생";
-        statusTrans.className = "text-xs font-bold text-rose-700 bg-rose-100 px-3 py-1.5 rounded-lg";
-        outputTrans.innerHTML += `\n\n<div class="p-4 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">오류: ${e.message}</div>`;
-      });
-
-      // 🚀 Promise 2: 기재불비 검토 스트리밍 (💡 API 병목 큐잉 방지를 위해 1.5초 지연 후 실행!)
-      const p2 = new Promise(resolve => setTimeout(resolve, 1500)).then(() => {
-        return streamFetchGemini('/api/gemini', { type: 'compare_deficiency', data: { krText, enText } }, (chunk) => {
-          if (isFirstDef) {
-              isFirstDef = false;
-              statusDef.innerText = "답변 출력 중 ✍️";
-              statusDef.classList.remove('animate-pulse');
+      try {
+        // 백엔드로 선택한 apiType 전송
+        await streamFetchGemini('/api/gemini', { type: apiType, data: { krText, enText } }, (chunk) => {
+          if (isFirst) {
+              isFirst = false;
+              statusSpan.innerText = "답변 출력 중 ✍️";
+              statusSpan.classList.remove('animate-pulse');
           }
-          accDef += chunk;
-          outputDef.innerHTML = formatText(accDef, 'rose');
-          outputDef.parentElement.scrollTop = outputDef.parentElement.scrollHeight;
-        }).then(() => {
-          statusDef.innerText = "✅ 검토 완료";
-          statusDef.className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg";
-        }).catch(e => {
-          statusDef.innerText = "🚨 에러 발생";
-          statusDef.className = "text-xs font-bold text-rose-700 bg-rose-100 px-3 py-1.5 rounded-lg";
-          outputDef.innerHTML += `\n\n<div class="p-4 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">오류: ${e.message}</div>`;
+          accText += chunk;
+          outputDiv.innerHTML = formatText(accText, color);
+          outputDiv.parentElement.scrollTop = outputDiv.parentElement.scrollHeight;
         });
-      });
-      
-      // 두 스트리밍이 모두 종료되었을 때 버튼 원복
-      Promise.allSettled([p1, p2]).then(() => {
-        btn.disabled = false; 
-        btn.innerText = "교차 검증 실행"; 
-        gtag('event', 'feature_execution', { 'feature_name': 'compare_parallel', 'status': 'success' });
-      });
+        
+        statusSpan.innerText = "✅ 검토 완료";
+        statusSpan.className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg";
+        gtag('event', 'feature_execution', { 'feature_name': apiType, 'status': 'success' });
+
+      } catch (e) {
+        statusSpan.innerText = "🚨 에러 발생";
+        statusSpan.className = "text-xs font-bold text-rose-700 bg-rose-100 px-3 py-1.5 rounded-lg";
+        outputDiv.innerHTML += `\n\n<div class="p-4 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">오류: ${e.message}</div>`;
+      } finally {
+        // 완료 후 버튼 다시 활성화
+        btnTrans.disabled = false; btnDef.disabled = false;
+        btnTrans.classList.remove('opacity-50'); btnDef.classList.remove('opacity-50');
+      }
     }
 
     // ================== 국가별 OA 논리 검토기 ==================
