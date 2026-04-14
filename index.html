@@ -940,17 +940,27 @@ textarea, input {
     function clearCompareInputs() { document.getElementById('kr-claim-input').value = ''; document.getElementById('en-claim-input').value = ''; document.getElementById('compare-result-container').classList.add('hidden'); document.getElementById('compare-result-content').innerHTML = ''; }
     
     async function runCompare() {
-      const krText = document.getElementById('kr-claim-input').value.trim(); const enText = document.getElementById('en-claim-input').value.trim();
-      if (!krText || !enText) return alert("양쪽 텍스트를 모두 입력해주세요.");
-      const btn = document.getElementById('btn-run-compare'); const resContent = document.getElementById('compare-result-content'); const resContainer = document.getElementById('compare-result-container');
+      const krText = document.getElementById('kr-claim-input').value.trim(); 
+      const enText = document.getElementById('en-claim-input').value.trim();
       
-      btn.disabled = true; btn.innerText = "분석 중 (최대 1분)..."; resContainer.classList.remove('hidden');
-      // 💡 애니메이션 텍스트를 쉽게 바꾸기 위해 id="compare-loading-text" 추가
+      if (!krText || !enText) return alert("양쪽 텍스트를 모두 입력해주세요.");
+      
+      const btn = document.getElementById('btn-run-compare'); 
+      const resContent = document.getElementById('compare-result-content'); 
+      const resContainer = document.getElementById('compare-result-container');
+      
+      btn.disabled = true; 
+      btn.innerText = "분석 중 (최대 1분)..."; 
+      resContainer.classList.remove('hidden');
+      
       resContent.innerHTML = `<div class="flex flex-col items-center justify-center p-20 opacity-60"><div class="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-6"></div><span id="compare-loading-text" class="font-black text-indigo-900 text-xl mb-2">AI 교차 검증 중...</span><span class="text-sm text-slate-500 font-medium">특허 전문가 수준의 권리범위 분석 및 용어 일관성을 검토하고 있습니다.</span></div>`;
       
+      // 💡 [수정 포인트 1] 변수를 try 밖으로 빼서 catch 블록에서도 안전하게 읽을 수 있도록 조치
+      let fullResponse = ""; 
+
       try { 
         let chunkCount = 0;
-        const fullResponse = await streamFetchGemini('/api/gemini', { type: 'compare', data: { krText, enText } }, (textChunk) => {
+        fullResponse = await streamFetchGemini('/api/gemini', { type: 'compare', data: { krText, enText } }, (textChunk) => {
           chunkCount++; 
           const dots = ".".repeat((chunkCount % 3) + 1);
           btn.innerText = `데이터 수신 및 분석 중${dots}`;
@@ -958,20 +968,36 @@ textarea, input {
           if (loadingText) loadingText.innerText = `AI 교차 검증 및 데이터 수신 중${dots}`;
         });
         
-        const cleanJson = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim(); 
-        renderCompareResult(JSON.parse(cleanJson));
+        // 💡 [방어 로직] 혹시라도 통신은 성공했는데 AI가 아무 말도 안 하고 끊어버린 경우
+        if (!fullResponse || !fullResponse.trim()) {
+            throw new Error("AI가 응답을 생성하지 못했습니다. (빈 데이터 반환)");
+        }
 
-        // 🟢 GA4 추가 부분: 대조기 성공
+        const cleanJson = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim(); 
+        const parsedData = JSON.parse(cleanJson);
+
+        // 💡 [수정 포인트 2] AI가 객체 대신 순수 빈 배열([])만 뱉었을 경우, 규격에 맞게 랩핑해줌
+        const finalResult = Array.isArray(parsedData) ? { discrepancies: parsedData } : parsedData;
+        
+        renderCompareResult(finalResult);
+
         gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'success', 'error_message': 'none' });
 
-     } catch (e) { 
-        // 🚨 디버깅을 위해 LLM이 뱉은 원본 텍스트를 콘솔에 찍어봅니다.
-        console.error("JSON 파싱 에러 발생! 원본 텍스트:", fullResponse);
+      } catch (e) { 
+        console.error("대조기 에러 발생! 원본 응답 텍스트:", fullResponse);
         
         gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'error', 'error_message': e.message });
-        resContent.innerHTML = `<div class="bg-rose-50 p-6 rounded-2xl border border-rose-200 text-rose-700 text-sm leading-loose whitespace-pre-wrap font-bold shadow-sm">🚨 분석 결과를 처리하는 중 오류가 발생했습니다.<br/><br/>에러 내용: ${e.message}</div>`; 
+        
+        // 💡 [에러 표출] 이제 화면이 멈추지 않고, 정확히 무엇 때문에 에러가 났는지 빨간 창으로 알려줍니다.
+        resContent.innerHTML = `
+            <div class="bg-rose-50 p-6 rounded-2xl border border-rose-200 text-rose-700 text-sm leading-loose whitespace-pre-wrap font-bold shadow-sm">
+                🚨 분석 결과를 처리하는 중 오류가 발생했습니다.<br/><br/>
+                [에러 내용]<br/>${e.message}<br/><br/>
+                [원본 응답 데이터]<br/>${fullResponse ? fullResponse.substring(0, 300) + '...' : '응답 데이터 없음'}
+            </div>`; 
       } finally { 
-        btn.disabled = false; btn.innerText = "교차 검증 실행"; 
+        btn.disabled = false; 
+        btn.innerText = "교차 검증 실행"; 
       }
     }
     function renderCompareResult(result) {
