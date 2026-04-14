@@ -950,111 +950,56 @@ textarea, input {
       const resContainer = document.getElementById('compare-result-container');
       
       btn.disabled = true; 
-      btn.innerText = "분석 중 (최대 1분)..."; 
+      btn.innerText = "분석 시작..."; 
       resContainer.classList.remove('hidden');
       
-      resContent.innerHTML = `<div class="flex flex-col items-center justify-center p-20 opacity-60"><div class="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-6"></div><span id="compare-loading-text" class="font-black text-indigo-900 text-xl mb-2">AI 교차 검증 중...</span><span class="text-sm text-slate-500 font-medium">특허 전문가 수준의 권리범위 분석 및 용어 일관성을 검토하고 있습니다.</span></div>`;
+      // 💡 UI를 단순한 텍스트 박스 형태로 초기화
+      resContent.innerHTML = `
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
+            <div class="px-8 py-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center sticky top-0">
+                <h3 class="font-black text-slate-900 flex items-center text-lg">💡 전문가 교차 검증 리포트</h3>
+                <span id="compare-status" class="text-xs font-bold text-indigo-600 bg-indigo-100 px-3 py-1.5 rounded-lg animate-pulse">분석 진행 중...</span>
+            </div>
+            <div class="p-8 flex-grow overflow-y-auto bg-[#f8fafc]">
+                <div id="compare-text-output" class="text-sm text-slate-800 leading-loose whitespace-pre-wrap font-medium"></div>
+            </div>
+        </div>`;
       
-      // 💡 [수정 포인트 1] 변수를 try 밖으로 빼서 catch 블록에서도 안전하게 읽을 수 있도록 조치
-      let fullResponse = ""; 
+      const outputDiv = document.getElementById('compare-text-output');
+      const statusSpan = document.getElementById('compare-status');
+      let isFirstChunk = true;
 
       try { 
-        let chunkCount = 0;
-        fullResponse = await streamFetchGemini('/api/gemini', { type: 'compare', data: { krText, enText } }, (textChunk) => {
-          chunkCount++; 
-          const dots = ".".repeat((chunkCount % 3) + 1);
-          btn.innerText = `데이터 수신 및 분석 중${dots}`;
-          const loadingText = document.getElementById('compare-loading-text');
-          if (loadingText) loadingText.innerText = `AI 교차 검증 및 데이터 수신 중${dots}`;
+        await streamFetchGemini('/api/gemini', { type: 'compare', data: { krText, enText } }, (textChunk) => {
+          if (isFirstChunk) {
+              isFirstChunk = false;
+              outputDiv.innerHTML = ""; // 처음 시작할 때 로딩 잔여물 제거
+              statusSpan.innerText = "답변 출력 중 ✍️";
+              statusSpan.classList.remove('animate-pulse');
+          }
+          // 💡 텍스트가 도착하는 즉시 화면에 타자 치듯 추가합니다.
+          outputDiv.innerHTML += textChunk;
+          
+          // 스크롤을 항상 맨 아래로 유지
+          const scrollContainer = outputDiv.parentElement;
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
         });
         
-        // 💡 [방어 로직] 혹시라도 통신은 성공했는데 AI가 아무 말도 안 하고 끊어버린 경우
-        if (!fullResponse || !fullResponse.trim()) {
-            throw new Error("AI가 응답을 생성하지 못했습니다. (빈 데이터 반환)");
-        }
-
-        const cleanJson = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim(); 
-        const parsedData = JSON.parse(cleanJson);
-
-        // 💡 [수정 포인트 2] AI가 객체 대신 순수 빈 배열([])만 뱉었을 경우, 규격에 맞게 랩핑해줌
-        const finalResult = Array.isArray(parsedData) ? { discrepancies: parsedData } : parsedData;
-        
-        renderCompareResult(finalResult);
-
-        gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'success', 'error_message': 'none' });
+        statusSpan.innerText = "✅ 검증 완료";
+        statusSpan.className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg";
+        gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'success' });
 
       } catch (e) { 
-        console.error("대조기 에러 발생! 원본 응답 텍스트:", fullResponse);
-        
+        console.error("대조기 스트리밍 에러:", e);
         gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'error', 'error_message': e.message });
         
-        // 💡 [에러 표출] 이제 화면이 멈추지 않고, 정확히 무엇 때문에 에러가 났는지 빨간 창으로 알려줍니다.
-        resContent.innerHTML = `
-            <div class="bg-rose-50 p-6 rounded-2xl border border-rose-200 text-rose-700 text-sm leading-loose whitespace-pre-wrap font-bold shadow-sm">
-                🚨 분석 결과를 처리하는 중 오류가 발생했습니다.<br/><br/>
-                [에러 내용]<br/>${e.message}<br/><br/>
-                [원본 응답 데이터]<br/>${fullResponse ? fullResponse.substring(0, 300) + '...' : '응답 데이터 없음'}
-            </div>`; 
+        statusSpan.innerText = "🚨 에러 발생";
+        statusSpan.className = "text-xs font-bold text-rose-700 bg-rose-100 px-3 py-1.5 rounded-lg";
+        outputDiv.innerHTML += `\n\n<div class="p-4 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">통신 중 오류가 발생했습니다: ${e.message}</div>`;
       } finally { 
         btn.disabled = false; 
         btn.innerText = "교차 검증 실행"; 
       }
-    }
-    function renderCompareResult(result) {
-      // 💡 [수정된 로직] 단순 개수가 아닌, 에러의 중대성(Severity)에 따라 감점 및 요약 생성
-      if (!result.overallScore) {
-         let penalty = 0;
-         let hasCriticalOrHigh = false;
-         const discrepancies = result.discrepancies || [];
-
-         // 에러 등급별 감점 점수 설정 (실무 중요도 반영)
-         const penaltyScores = { 'Low': 2, 'Medium': 5, 'High': 10, 'Critical': 20 };
-
-         discrepancies.forEach(item => {
-             penalty += (penaltyScores[item.severity] || 2); // 등급에 맞게 감점
-             if (item.severity === 'Critical' || item.severity === 'High') {
-                 hasCriticalOrHigh = true; // 치명적 에러 여부 마킹
-             }
-         });
-
-         // 기본 100점에서 감점, 최하점은 0점
-         result.overallScore = Math.max(0, 100 - penalty);
-         
-         // 요약 코멘트도 '에러 개수'가 아닌 '치명적 에러 존재 여부'에 따라 생성
-         if (discrepancies.length === 0) {
-             result.summary = "완벽합니다! 원본과 번역본 간의 권리 범위 불일치나 치명적인 오역이 발견되지 않았습니다.";
-         } else if (hasCriticalOrHigh) {
-             result.summary = "권리 범위에 치명적인 영향을 미칠 수 있는 중대한 오역(누락/확장)이 발견되었습니다. 해당 위치의 전면적인 재검토 및 수정이 강력히 권장됩니다.";
-         } else {
-             result.summary = "전반적으로 우수하나, 권리 범위에 직접적인 영향은 적은 단순 용어 불일치나 수정 권장 사항이 발견되었습니다.";
-         }
-         
-         // Checks(요약 패널) 상태 업데이트
-         result.checks = [
-             { category: "권리 범위", status: hasCriticalOrHigh ? "Fail" : (discrepancies.length > 0 ? "Warning" : "Pass"), comment: "청구항 간 한정 사항 교차 검토" },
-             { category: "용어 일관성", status: discrepancies.length > 0 ? "Warning" : "Pass", comment: "주요 기술 용어 번역 일관성 검토" },
-             { category: "구조적 포맷", status: "Pass", comment: "해외 특허청(USPTO/EPO) 포맷 준수 여부" }
-         ];
-      }
-
-      // 💡 여기서부터 실수로 지워진 HTML 화면 렌더링 코드 복구!
-      const container = document.getElementById('compare-result-content');
-      
-      const getStatusColor = (status) => { switch (status) { case 'Pass': return 'bg-emerald-100 text-emerald-700 border-emerald-200'; case 'Warning': return 'bg-amber-100 text-amber-700 border-amber-200'; case 'Fail': return 'bg-rose-100 text-rose-700 border-rose-200'; default: return 'bg-slate-100 text-slate-700 border-slate-200'; } };
-      const getSeverityColor = (severity) => { switch (severity) { case 'Low': return 'text-slate-600 bg-slate-100 border-slate-200'; case 'Medium': return 'text-amber-700 bg-amber-50 border-amber-200'; case 'High': return 'text-orange-700 bg-orange-50 border-orange-200'; case 'Critical': return 'text-rose-700 bg-rose-50 border-rose-200 font-bold'; default: return 'text-slate-600 bg-slate-100 border-slate-200'; } };
-      const translateStatus = (status) => { switch(status) { case 'Pass': return '정상 (Pass)'; case 'Warning': return '주의 (Warning)'; case 'Fail': return '오류 (Fail)'; default: return status; } };
-      const translateSeverity = (severity) => { switch(severity) { case 'Low': return '낮음'; case 'Medium': return '중간'; case 'High': return '높음'; case 'Critical': return '치명적'; default: return severity; } };
-      const scoreColor = result.overallScore >= 80 ? 'text-emerald-600' : result.overallScore >= 50 ? 'text-amber-600' : 'text-rose-600';
-      
-      let html = `<div class="space-y-8 animate-fadeIn"><div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"><div class="flex flex-col md:flex-row border-b border-slate-100"><div class="p-10 md:w-1/3 flex flex-col items-center justify-center bg-slate-50 border-r border-slate-100"><div class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">번역 정확도 (Accuracy)</div><div class="text-7xl font-black ${scoreColor} tracking-tighter">${result.overallScore}<span class="text-3xl text-slate-300 font-bold">/100</span></div></div><div class="p-10 md:w-2/3 flex flex-col justify-center"><h3 class="text-xl font-black text-slate-900 mb-4 flex items-center"><span class="bg-indigo-600 text-white px-3 py-1 rounded-lg mr-3 text-[11px] uppercase tracking-widest shadow-md">Summary</span> 전문가 종합 진단</h3><p class="text-slate-700 leading-loose font-medium text-sm bg-slate-50/50 p-6 rounded-2xl border border-slate-100">${result.summary}</p></div></div></div><div class="grid grid-cols-1 md:grid-cols-3 gap-6">`;
-      result.checks.forEach(check => { html += `<div class="p-6 rounded-3xl border ${getStatusColor(check.status)} flex flex-col h-full transition-all shadow-sm"><div class="flex items-center justify-between mb-4"><span class="font-black text-sm uppercase tracking-tight">${check.category}</span><span class="text-[11px] px-3 py-1 rounded-full border bg-white/60 font-black shadow-sm">${translateStatus(check.status)}</span></div><p class="text-sm flex-grow mb-4 text-slate-800 leading-relaxed font-medium">${check.comment}</p>${check.suggestion ? `<div class="mt-auto pt-4 border-t border-black/10"><p class="text-[13px] text-slate-700 leading-relaxed"><span class="font-black text-slate-900 mr-1">💡 제언:</span> ${check.suggestion}</p></div>` : ''}</div>`; });
-      html += `</div><div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"><div class="px-8 py-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center"><h3 class="font-black text-slate-900 flex items-center text-lg"><svg class="w-6 h-6 mr-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg> 세부 위치별 분석 결과</h3><span class="text-xs font-black text-indigo-600 bg-indigo-100 px-3 py-1.5 rounded-lg shadow-sm">${result.discrepancies.length}건의 오류 위치 발견</span></div><div class="divide-y divide-slate-100 overflow-x-auto"><table class="min-w-full divide-y divide-slate-200"><thead class="bg-white"><tr><th class="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest w-[45%]">발생 위치 & 텍스트 대조</th><th class="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">문제 진단</th><th class="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">수정 권고안</th></tr></thead><tbody class="bg-white divide-y divide-slate-100">`;
-      
-      if (result.discrepancies.length === 0) { html += `<tr><td colspan="3" class="px-8 py-16 text-center text-slate-500 font-bold bg-slate-50/50">🎉 심각한 번역 불일치나 오류가 발견되지 않았습니다.</td></tr>`; } 
-      else { result.discrepancies.forEach(item => { html += `<tr class="hover:bg-slate-50/80 transition-colors"><td class="px-8 py-6 align-top"><div class="flex flex-col gap-4"><div class="flex items-center"><span class="bg-slate-900 text-white text-[10px] font-black px-2 py-1 rounded mr-3 uppercase tracking-widest shadow-sm">Location</span><span class="text-sm font-bold text-indigo-600">${item.locationIndicator || '위치 미상'}</span></div><div class="space-y-3"><div class="p-4 bg-slate-50 rounded-xl border border-slate-200 text-sm font-mono leading-relaxed shadow-inner"><span class="text-[10px] font-black text-slate-400 block mb-2 uppercase tracking-widest">KR (Original)</span><span class="text-slate-700">${item.koreanSegment}</span></div><div class="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 text-sm font-mono leading-relaxed shadow-inner"><span class="text-[10px] font-black text-indigo-400 block mb-2 uppercase tracking-widest">EN (Translation)</span><span class="text-indigo-950">${item.englishSegment}</span></div></div></div></td><td class="px-8 py-6 align-top"><div class="flex flex-col gap-3"><span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-black w-fit border shadow-sm ${getSeverityColor(item.severity)}">${translateSeverity(item.severity)} 수준의 이슈</span><p class="text-[13px] text-slate-700 font-medium leading-relaxed break-keep">${item.issue}</p></div></td><td class="px-8 py-6 align-top"><div class="p-4 bg-emerald-50 text-emerald-900 rounded-xl text-[13px] border border-emerald-100 leading-relaxed font-bold font-mono shadow-sm"><span class="text-[10px] font-black text-emerald-600 block mb-2 uppercase tracking-widest">Recommended Fix</span>${item.recommendedFix}</div></td></tr>`; }); }
-      html += `</tbody></table></div><div class="px-8 py-5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 leading-relaxed font-medium"><span class="font-black text-slate-700 mr-2">참고사항:</span>${result.discrepancies.length > 0 ? "본 분석 결과는 영문 청구항의 법적 안정성을 제고하기 위한 AI 제언입니다. 최종 수정 여부는 출원 목적에 맞게 판단하시기 바랍니다." : "번역본이 원문의 권리범위를 잘 반영하고 있습니다. 최종 제출 전 형식적 기재불비가 없는지 마지막으로 확인하시기 바랍니다."}</div></div></div>`; 
-      
-      container.innerHTML = html;
     }
 
     // ================== 국가별 OA 논리 검토기 ==================
