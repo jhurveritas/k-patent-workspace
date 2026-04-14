@@ -964,10 +964,11 @@ textarea, input {
         // 🟢 GA4 추가 부분: 대조기 성공
         gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'success', 'error_message': 'none' });
 
-      } catch (e) { 
-        // 🟢 GA4 추가 부분: 대조기 에러
-        gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'error', 'error_message': e.message });
+     } catch (e) { 
+        // 🚨 디버깅을 위해 LLM이 뱉은 원본 텍스트를 콘솔에 찍어봅니다.
+        console.error("JSON 파싱 에러 발생! 원본 텍스트:", fullResponse);
         
+        gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'error', 'error_message': e.message });
         resContent.innerHTML = `<div class="bg-rose-50 p-6 rounded-2xl border border-rose-200 text-rose-700 text-sm leading-loose whitespace-pre-wrap font-bold shadow-sm">🚨 분석 결과를 처리하는 중 오류가 발생했습니다.<br/><br/>에러 내용: ${e.message}</div>`; 
       } finally { 
         btn.disabled = false; btn.innerText = "교차 검증 실행"; 
