@@ -235,17 +235,8 @@ export async function onRequest(context) {
             geminiPayload = { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } };
           }
 
-          // 🚀 구글 제미나이 본 요청 시작
-          let targetModel = "gemini-3.1-pro-preview"; // 기존에 사용하시던 메인 모델
-
-          // 💡 [초강력 524 방어막] 병렬 호출로 서버에 과부하를 주는 대조기 기능은 
-          // 읽기 속도가 10배 이상 빠른 Flash 모델로 강제 라우팅하여 100초 타임아웃을 회피합니다.
-          if (requestBody.type === 'compare_translation' || requestBody.type === 'compare_deficiency') {
-            targetModel = "gemini-3-flash-preview"; 
-          }
-
-          const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
-          
+           // 🚀 구글 제미나이 본 요청 시작
+          const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
           let googleResponse;
           const maxRetries = 2; // 최대 2번 더 재시도 (총 3번 호출)
           
