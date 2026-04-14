@@ -977,8 +977,10 @@ textarea, input {
               statusSpan.innerText = "답변 출력 중 ✍️";
               statusSpan.classList.remove('animate-pulse');
           }
-          // 💡 텍스트가 도착하는 즉시 화면에 타자 치듯 추가합니다.
-          outputDiv.innerHTML += textChunk;
+          
+          // 💡 [치명적 오류 방어] 특허청구항의 < > 기호가 HTML 태그로 인식되어 투명해지는 현상 완벽 차단!
+          const safeChunk = textChunk.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          outputDiv.innerHTML += safeChunk;
           
           // 스크롤을 항상 맨 아래로 유지
           const scrollContainer = outputDiv.parentElement;
@@ -987,9 +989,15 @@ textarea, input {
         
         statusSpan.innerText = "✅ 검증 완료";
         statusSpan.className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg";
+        
+        // 💡 [UI 성형수술] 텍스트 출력이 모두 끝나면, 밋밋한 기호(**, ###)를 예쁜 디자인 뱃지로 변환해줍니다!
+        outputDiv.innerHTML = outputDiv.innerHTML
+            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>') // **강조**를 예쁜 라벨로
+            .replace(/### (.*)/g, '<br><h3 class="text-[15px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg inline-block mt-4 mb-2">$1</h3>'); // ### 제목을 눈에 띄는 박스로
+
         gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'success' });
 
-      } catch (e) { 
+      } catch (e) {
         console.error("대조기 스트리밍 에러:", e);
         gtag('event', 'feature_execution', { 'feature_name': 'compare', 'status': 'error', 'error_message': e.message });
         
