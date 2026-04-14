@@ -241,7 +241,7 @@ export async function onRequest(context) {
           // 💡 [초강력 524 방어막] 병렬 호출로 서버에 과부하를 주는 대조기 기능은 
           // 읽기 속도가 10배 이상 빠른 Flash 모델로 강제 라우팅하여 100초 타임아웃을 회피합니다.
           if (requestBody.type === 'compare_translation' || requestBody.type === 'compare_deficiency') {
-            targetModel = "gemini-3-flash-preview"; 
+            targetModel = "gemini-3.0-flash"; 
           }
 
           const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
