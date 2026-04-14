@@ -139,7 +139,9 @@ export async function onRequest(context) {
                   },
                   required: ["discrepancies"]
                 }
-              }
+              } 
+            };
+          }
           
           // 🛡️ [의견서 생성기]
           else if (requestBody.type === 'draft') {
