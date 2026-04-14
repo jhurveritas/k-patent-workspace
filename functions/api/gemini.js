@@ -115,26 +115,12 @@ export async function onRequest(context) {
               contents: [{ role: "user", parts: [{ text: promptText }] }], 
               generationConfig: { 
                 temperature: 0.1,
-                maxOutputTokens: 2048, // 💡 혹시 모를 투머치토커 방지용 출력 토큰 제한 추가
+                maxOutputTokens: 2048,
                 responseMimeType: "application/json",
                 responseSchema: {
                   type: "OBJECT",
                   properties: {
-                    overallScore: { type: "NUMBER" },
-                    summary: { type: "STRING" },
-                    checks: {
-                      type: "ARRAY",
-                      items: {
-                        type: "OBJECT",
-                        properties: {
-                          category: { type: "STRING" },
-                          status: { type: "STRING", enum: ["Pass", "Warning", "Fail"] },
-                          comment: { type: "STRING" },
-                          suggestion: { type: "STRING" }
-                        },
-                        required: ["category", "status", "comment"]
-                      }
-                    },
+                    // 💡 무거운 요약과 점수를 날리고 오직 에러 배열만 요구합니다!
                     discrepancies: {
                       type: "ARRAY",
                       items: {
@@ -151,11 +137,9 @@ export async function onRequest(context) {
                       }
                     }
                   },
-                  required: ["overallScore", "summary", "checks", "discrepancies"]
+                  required: ["discrepancies"]
                 }
-              } 
-            };
-          }
+              }
           
           // 🛡️ [의견서 생성기]
           else if (requestBody.type === 'draft') {
