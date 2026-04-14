@@ -1008,7 +1008,7 @@ textarea, input {
           .replace(/\*\*(.*?)\*\*/g, `<strong class="text-${color}-700 bg-${color}-50 px-1.5 py-0.5 rounded">$1</strong>`)
           .replace(/### (.*)/g, '<br><h3 class="text-[15px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg inline-block mt-4 mb-2">$1</h3>');
 
-      // 🚀 Promise 1: 번역 대조 스트리밍
+      // 🚀 Promise 1: 번역 대조 스트리밍 (즉시 실행)
       const p1 = streamFetchGemini('/api/gemini', { type: 'compare_translation', data: { krText, enText } }, (chunk) => {
         if (isFirstTrans) {
             isFirstTrans = false;
@@ -1027,25 +1027,27 @@ textarea, input {
         outputTrans.innerHTML += `\n\n<div class="p-4 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">오류: ${e.message}</div>`;
       });
 
-      // 🚀 Promise 2: 기재불비 검토 스트리밍
-      const p2 = streamFetchGemini('/api/gemini', { type: 'compare_deficiency', data: { krText, enText } }, (chunk) => {
-        if (isFirstDef) {
-            isFirstDef = false;
-            statusDef.innerText = "답변 출력 중 ✍️";
-            statusDef.classList.remove('animate-pulse');
-        }
-        accDef += chunk;
-        outputDef.innerHTML = formatText(accDef, 'rose');
-        outputDef.parentElement.scrollTop = outputDef.parentElement.scrollHeight;
-      }).then(() => {
-        statusDef.innerText = "✅ 검토 완료";
-        statusDef.className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg";
-      }).catch(e => {
-        statusDef.innerText = "🚨 에러 발생";
-        statusDef.className = "text-xs font-bold text-rose-700 bg-rose-100 px-3 py-1.5 rounded-lg";
-        outputDef.innerHTML += `\n\n<div class="p-4 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">오류: ${e.message}</div>`;
+      // 🚀 Promise 2: 기재불비 검토 스트리밍 (💡 API 병목 큐잉 방지를 위해 1.5초 지연 후 실행!)
+      const p2 = new Promise(resolve => setTimeout(resolve, 1500)).then(() => {
+        return streamFetchGemini('/api/gemini', { type: 'compare_deficiency', data: { krText, enText } }, (chunk) => {
+          if (isFirstDef) {
+              isFirstDef = false;
+              statusDef.innerText = "답변 출력 중 ✍️";
+              statusDef.classList.remove('animate-pulse');
+          }
+          accDef += chunk;
+          outputDef.innerHTML = formatText(accDef, 'rose');
+          outputDef.parentElement.scrollTop = outputDef.parentElement.scrollHeight;
+        }).then(() => {
+          statusDef.innerText = "✅ 검토 완료";
+          statusDef.className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg";
+        }).catch(e => {
+          statusDef.innerText = "🚨 에러 발생";
+          statusDef.className = "text-xs font-bold text-rose-700 bg-rose-100 px-3 py-1.5 rounded-lg";
+          outputDef.innerHTML += `\n\n<div class="p-4 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">오류: ${e.message}</div>`;
+        });
       });
-
+      
       // 두 스트리밍이 모두 종료되었을 때 버튼 원복
       Promise.allSettled([p1, p2]).then(() => {
         btn.disabled = false; 
