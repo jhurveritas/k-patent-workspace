@@ -92,21 +92,10 @@ export async function onRequest(context) {
               당신은 한국 특허 실무와 글로벌(USPTO/EPO) 특허 표준을 모두 꿰뚫고 있는 세계 최고 수준의 기술 번역 전문가입니다.
               당신의 임무는 한국어 특허 청구항의 영문 번역본을 분석하여 정확성, 법적 효력, 기술적 일관성을 검증하는 것입니다.
 
-              🚨 [출력 최소화 및 시간 단축 필수 지시사항 - 매우 중요] 🚨
-              연산 시간을 최소화하기 위해 '문제가 없는 정상적인 청구항'에 대한 분석은 완벽히 생략(Skip)하십시오.
-              오직 번역 오류, 권리 범위 불일치, 용어 오역, 구조적 누락이 발생한 '문제가 있는 청구항'만 찾아내어 discrepancies 배열에 추가하십시오.
-              만약 모든 청구항이 완벽하다면 discrepancies 배열은 빈 배열([])로 반환하십시오.
-              summary, comment 등의 텍스트는 미사여구를 빼고 가장 핵심적인 내용만 극도로 간결하게 1~2문장 내외로 작성하십시오.
-
-              [검증 포인트]
-              1. 법적 권리 범위 (Legal Scope) 확장에 따른 불일치 여부
-              2. 기술 용어(Terminology) 오역 여부
-              3. 한국어 원문의 한정 사항 누락 여부
-
-              🚨 [JSON 출력 엄격 준수 사항] 🚨
-              1. 반드시 유효한 순수 JSON 객체 포맷으로만 응답해야 합니다.
-              2. JSON의 모든 Value(문자열) 내부에는 절대로 실제 줄바꿈(Enter)을 사용하지 마십시오. 줄바꿈이 필요하다면 반드시 '\\n' 으로 이스케이프 처리하십시오.
-              3. 문자열 내부에 큰따옴표(")가 포함될 경우 반드시 '\\"' 로 이스케이프 처리하십시오.
+              [출력 지시사항 - 매우 중요]
+              1. JSON이 아닌, 읽기 편한 일반 마크다운(Markdown) 텍스트 형식으로 작성하십시오.
+              2. 문제가 없는 정상적인 청구항은 분석을 생략하십시오.
+              3. 오역, 권리 범위 불일치, 누락이 발생한 청구항만 번호를 명시하고, [발생 위치], [문제 진단], [수정 권고안]을 글머리 기호로 정리하여 즉시 출력하십시오.
             `;
             const promptText = `KOREAN CLAIM (한국어 원문):\n${krText}\n\nENGLISH TRANSLATION (영문 번역본):\n${enText}`;
 
@@ -115,30 +104,8 @@ export async function onRequest(context) {
               contents: [{ role: "user", parts: [{ text: promptText }] }], 
               generationConfig: { 
                 temperature: 0.1,
-                maxOutputTokens: 2048,
-                responseMimeType: "application/json",
-                responseSchema: {
-                  type: "OBJECT",
-                  properties: {
-                    // 💡 무거운 요약과 점수를 날리고 오직 에러 배열만 요구합니다!
-                    discrepancies: {
-                      type: "ARRAY",
-                      items: {
-                        type: "OBJECT",
-                        properties: {
-                          locationIndicator: { type: "STRING" },
-                          koreanSegment: { type: "STRING" },
-                          englishSegment: { type: "STRING" },
-                          issue: { type: "STRING" },
-                          severity: { type: "STRING", enum: ["Low", "Medium", "High", "Critical"] },
-                          recommendedFix: { type: "STRING" }
-                        },
-                        required: ["locationIndicator", "koreanSegment", "englishSegment", "issue", "severity", "recommendedFix"]
-                      }
-                    }
-                  },
-                  required: ["discrepancies"]
-                }
+                maxOutputTokens: 2048
+                // 🚨 responseSchema와 responseMimeType("application/json")을 완전히 삭제했습니다!
               } 
             };
           }
