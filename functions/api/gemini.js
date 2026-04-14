@@ -103,6 +103,11 @@ export async function onRequest(context) {
               - 'discrepancies' 배열 내의 각 항목은 청구항 내의 구체적인 '위치(locationIndicator)'를 포함해야 합니다.
               - 모든 분석 내용(summary, comment, suggestion, issue)은 한국어로 작성하십시오.
               - 한국인 전문가가 '어느 부분에서 어떤 문제가 발생했는지' 한눈에 알 수 있도록 위치 식별을 명확히 하십시오.
+              
+              🚨 [JSON 출력 엄격 준수 사항] 🚨
+              1. 반드시 유효한 순수 JSON 객체 포맷으로만 응답해야 합니다.
+              2. JSON의 모든 Value(문자열) 내부에는 **절대로 실제 줄바꿈(Enter)을 사용하지 마십시오.** 줄바꿈이 필요하거나 원문에 줄바꿈이 있는 경우 반드시 '\\n' 으로 이스케이프 처리하십시오.
+              3. 문자열 내부에 큰따옴표(")가 포함될 경우 반드시 '\\"' 로 이스케이프 처리하십시오.
             `;
             const promptText = `KOREAN CLAIM (한국어 원문):\n${krText}\n\nENGLISH TRANSLATION (영문 번역본):\n${enText}`;
 
