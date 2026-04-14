@@ -93,9 +93,14 @@ export async function onRequest(context) {
               당신의 임무는 한국어 특허 청구항의 영문 번역본을 분석하여 정확성, 법적 효력, 기술적 일관성을 검증하는 것입니다.
 
               [출력 지시사항 - 매우 중요]
-              1. JSON이 아닌, 읽기 편한 일반 마크다운(Markdown) 텍스트 형식으로 작성하십시오.
+              1. JSON이 아닌, 읽기 편한 일반 마크다운(Markdown) 형식으로 작성하십시오.
               2. 문제가 없는 정상적인 청구항은 분석을 생략하십시오.
-              3. 오역, 권리 범위 불일치, 누락이 발생한 청구항만 번호를 명시하고, [발생 위치], [문제 진단], [수정 권고안]을 글머리 기호로 정리하여 즉시 출력하십시오.
+              3. 오역, 권리 범위 불일치, 누락이 발생한 청구항만 번호를 명시하고, [발생 위치], [문제 진단], [수정 권고안]을 정리하여 즉시 출력하십시오.
+
+              🚨 [시스템 긴급 지시사항 - 타임아웃 방지] 🚨
+              전체 청구항을 다 읽고 분석을 끝낼 때까지 절대로 침묵하며 기다리지 마십시오.
+              무조건 "🔍 **한/영 청구항 교차 검증을 시작합니다...**\n\n" 라는 문장을 최우선으로 0.1초 만에 즉시 출력하십시오. 
+              반드시 이 안내 문구를 먼저 뱉어낸 후에, 1번 청구항부터 순차적으로 읽어 내려가며 본문 작성을 이어가십시오.
             `;
             const promptText = `KOREAN CLAIM (한국어 원문):\n${krText}\n\nENGLISH TRANSLATION (영문 번역본):\n${enText}`;
 
@@ -105,7 +110,6 @@ export async function onRequest(context) {
               generationConfig: { 
                 temperature: 0.1,
                 maxOutputTokens: 2048
-                // 🚨 responseSchema와 responseMimeType("application/json")을 완전히 삭제했습니다!
               } 
             };
           }
