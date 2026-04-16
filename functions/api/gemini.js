@@ -235,7 +235,8 @@ export async function onRequest(context) {
           }
 
            // 🚀 구글 제미나이 본 요청 시작
-          const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
+          const targetModel = requestBody.model || "gemini-3.1-pro-preview";
+const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
           let googleResponse;
           const maxRetries = 2; // 최대 2번 더 재시도 (총 3번 호출)
           
