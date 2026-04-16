@@ -214,7 +214,7 @@ export async function onRequest(context) {
 각 항목별로 문제점과 제안을 작성하고, 문제가 없으면 "✅ 특이사항 없음" 기재.
 ### 1. ⚠️ 누락된 대응 논리
 ### 2. 🚨 청구항-논리 불일치
-### 3. 📝 기재불비 및 신규사항 추가
+### 3. 📝 기재불비 및 신규사항 추가`; //
 
             let parts = [
               { text: `[분석 자료]\n- 대상 국가: ${targetCountry}\n- 최초명세서: ${cleanSpec}\n- 계류중 청구항: ${cleanPending}\n- 보정 후 청구항: ${cleanAmended}\n- 대응 논리: ${userDraftResponse}` }
