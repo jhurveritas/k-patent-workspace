@@ -201,7 +201,7 @@ export async function onRequest(context) {
 
 [역할 및 목표]
 - 역할: ${targetCountry} 특허 실무 전문가
-- 목표: 거절이유 통지서와 사용자의 대응 초안을 비교하여 방어 논리의 허점, 기재불비, 불일치 검증
+- 목표: OA와 대응 초안 대조: 방어논리 누락, 불일치, 기재불비 검토
 
 [검토 지침]
 1. 누락 검증: OA 지적 사항 중 대응 초안에서 누락된 논리가 있는지 확인. 이때, 종속항에 대한 진보성 논리 판단은 제외.
@@ -215,7 +215,6 @@ export async function onRequest(context) {
 ### 1. ⚠️ 누락된 대응 논리
 ### 2. 🚨 청구항-논리 불일치
 ### 3. 📝 기재불비 및 신규사항 추가
-### 4. ✅ 종합 평가 (완벽한 방어 논리인지 여부)`;
 
             let parts = [
               { text: `[분석 자료]\n- 대상 국가: ${targetCountry}\n- 최초명세서: ${cleanSpec}\n- 계류중 청구항: ${cleanPending}\n- 보정 후 청구항: ${cleanAmended}\n- 대응 논리: ${userDraftResponse}` }
