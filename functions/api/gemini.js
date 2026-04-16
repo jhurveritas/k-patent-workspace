@@ -24,29 +24,32 @@ export async function onRequest(context) {
     }
   }
 
-  // 🔥 구글 File API 고속 업로드 헬퍼 함수
-  async function uploadToGemini(fileData, apiKey) {
-    const binaryString = atob(fileData.base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    
-    const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`;
-    const res = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': fileData.mimeType },
-      body: bytes.buffer
-    });
-    
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`File API 업로드 실패: ${errText}`);
-    }
-    
-    const data = await res.json();
-    return { fileUri: data.file.uri, mimeType: fileData.mimeType, name: fileData.name };
+  // 🔥 수정된 구글 File API 고속 업로드 헬퍼 함수
+async function uploadToGemini(fileData, apiKey) {
+  // 1. 무거운 for 루프 대신 Cloudflare 내부 엔진을 활용하여 CPU 소모 없이 Blob으로 변환
+  const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`;
+  const fileResponse = await fetch(dataUrl);
+  const blob = await fileResponse.blob();
+  
+  // 2. 바이너리 업로드를 위한 필수 파라미터(uploadType=media) 추가
+  const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=media&key=${apiKey}`;
+  
+  const res = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': fileData.mimeType 
+    },
+    body: blob // 변환된 Blob을 그대로 전송
+  });
+  
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`File API 업로드 실패: ${errText}`);
   }
+  
+  const data = await res.json();
+  return { fileUri: data.file.uri, mimeType: fileData.mimeType, name: fileData.name };
+}
 
   try {
     const apiKey = context.env.GEMINI_API_KEY;
