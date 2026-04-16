@@ -190,39 +190,36 @@ export async function onRequest(context) {
           else if (requestBody.type === 'oa_review') {
             const { targetCountry, originalSpecification, officeAction, pendingClaims, amendedClaims, userDraftResponse } = requestBody.data;
             
-            // 💡 [해결 로직 추가] 정규식을 사용하여 XML/HTML 태그를 모두 제거하고 다중 공백을 하나로 압축합니다.
             const cleanSpec = originalSpecification ? originalSpecification.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
             const cleanPending = pendingClaims ? pendingClaims.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
             const cleanAmended = amendedClaims ? amendedClaims.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
 
-            const prompt = `너는 ${targetCountry} 특허법 및 심사실무에 능통한 최고 수준의 특허 명세사야. 
-            아래 제공된 분석 자료들을 바탕으로 아래 지시사항과 같은 분석을 해주고, 반드시 아래 JSON 형식으로만 응답해줘.
-            
-            [분석 자료]
-            - 대상 국가: ${targetCountry}
-            - 최초명세서: ${cleanSpec}
-            - 계류중 청구항: ${cleanPending}
-            - 보정 후 청구항: ${cleanAmended}
-            - 대응 초안(핵심 논리): ${userDraftResponse}
+            // 💡 프롬프트 다이어트 & 마크다운 스트리밍 적용
+            const systemInstruction = `[최우선 지시사항]
+네트워크 타임아웃 방지를 위해 무조건 다음 문장을 0.1초 내로 가장 먼저 출력할 것:
+"💡 **${targetCountry} 기준 AI 논리 검토를 시작합니다...**\n\n"
 
-            [지시사항]
-            1. 거절이유 통지서(첨부파일)의 지적 사항과 사용자의 대응 초안을 비교하여 누락된 대응 논리가 있는지 분석하세요.
-            2. 보정 후 청구항과 대응 초안의 주장이 일치하는지 분석하세요.
-            3. 보정 후 청구항에 명확성 결여, 신규사항 추가 등 기재불비 사항이 있는지, 그리고 청구항 간 상충되는 내용이 발생하는지 분석하세요. 이때, 선택된 대상 국가의 특유한 제도 등을 고려해주세요.
-            예를 들면, 미국에서는 MPEP, 35 U.S.C. 101, 102, 103, 112 등을 고려하고, 유럽에서는 MPEP, 35 U.S.C. 101, 102, 103, 112, Intermediate Generalization 등을 고려해주세요.
-            (주의: '보정 후 청구항' 란에 보정된 일부 청구항만 기재되어 있는 경우, 기재되지 않은 나머지 청구항은 '현재 계류 중인 청구항'과 동일한 것으로 간주하여 전체 청구항 세트를 기준으로 기재불비 및 청구항 간 상충 여부를 종합적으로 판단하세요.)
-            4. 단, 종속항에 대한 진보성(Inventive Step / Non-obviousness) 판단은 논리 검토 대상에서 제외하세요.
-            5. 신규사항 추가 이슈는 중국과 유럽은 가장 엄격하게 봐주고, 미국,일본 및 한국은 지적은 해주되 도면이나 발명의 설명으로부터 도출 가능한 정도라면 괜찮다는 문구를 추가해주세요.
-             
-            [요구되는 JSON 응답 포맷 (반드시 지킬 것)]
-            {
-              "isComplete": boolean (완벽한 방어 논리인지 여부),
-              "missingPoints": [{"point": "지적 사항 요약", "suggestion": "보완 제안 내용"}],
-              "claimDiscrepancies": [{"issue": "불일치 문제점", "suggestion": "해결 제안 내용"}],
-              "descriptionDeficiencies": [{"issue": "기재불비 문제점", "suggestion": "해결 제안 내용"}]
-            }`;
+[역할 및 목표]
+- 역할: ${targetCountry} 특허청 심사 실무에 능통한 특허 명세사
+- 목표: 거절이유 통지서와 사용자의 대응 초안을 비교하여 방어 논리의 허점, 기재불비, 불일치 검증
 
-            let parts = [{ text: prompt }];
+[검토 지침]
+1. 누락 검증: OA 지적 사항 중 대응 초안에서 누락된 논리가 있는지 확인.
+2. 논리 일치: 보정 후 청구항과 대응 초안의 주장이 상충되지 않는지 확인. 
+3. 기재불비: 보정 후 청구항의 명확성 결여 및 청구항 내용 상충 여부, 신규사항 추가(New Matter) 등 검토.  (주의: '보정 후 청구항' 란에 보정된 일부 청구항만 기재되어 있는 경우, 기재되지 않은 나머지 청구항은 '현재 계류 중인 청구항'과 동일한 것으로 간주하여 전체 청구항 세트를 기준으로 기재불비 및 청구항 간 상충 여부를 종합적으로 판단하세요.)
+4. 실무 반영: 미국(MPEP), 유럽(EPC) 등 ${targetCountry} 특유 제도를 반영하되, 종속항 진보성 판단은 제외.
+5. 신규사항: CN/EP는 엄격하게, KR/US/JP는 도면/설명 도출 가능 시 허용하는 관점 적용.
+
+[출력 형식 - 반드시 마크다운으로 작성]
+각 항목별로 문제점과 제안을 작성하고, 문제가 없으면 "✅ 특이사항 없음" 기재.
+### 1. ⚠️ 누락된 대응 논리
+### 2. 🚨 청구항-논리 불일치
+### 3. 📝 기재불비 및 신규사항 추가
+### 4. ✅ 종합 평가 (완벽한 방어 논리인지 여부)`;
+
+            let parts = [
+              { text: `[분석 자료]\n- 대상 국가: ${targetCountry}\n- 최초명세서: ${cleanSpec}\n- 계류중 청구항: ${cleanPending}\n- 보정 후 청구항: ${cleanAmended}\n- 대응 논리: ${userDraftResponse}` }
+            ];
 
             if (officeAction) {
               const uploadedOA = await uploadToGemini(officeAction, apiKey);
@@ -230,7 +227,12 @@ export async function onRequest(context) {
               parts.push({ text: `[거절이유 / 통지서 원문 파일: ${uploadedOA.name}]` });
             }
 
-            geminiPayload = { contents: [{ role: "user", parts: parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } };
+            geminiPayload = { 
+              systemInstruction: { parts: [{ text: systemInstruction }] },
+              contents: [{ role: "user", parts: parts }], 
+              // 🚨 JSON 설정 제거! 일반 텍스트 스트리밍으로 전송
+              generationConfig: { temperature: 0.2, maxOutputTokens: 8192 } 
+            };
           }
 
            // 🚀 구글 제미나이 본 요청 시작
