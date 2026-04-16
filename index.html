@@ -1150,36 +1150,77 @@ textarea, input {
     function clearOAInputs() { oaState.officeActionFile = null; document.getElementById('oa-original-spec').value = ''; document.getElementById('oa-pending-claims').value = ''; document.getElementById('oa-amended-claims').value = ''; document.getElementById('oa-user-draft').value = ''; document.getElementById('oa-file-name').innerText = 'PDF, Word 파일 선택 또는 여기로 드래그'; document.getElementById('oa-btn-generate').disabled = true; }
 
    async function runOAReview() {
-      const btn = document.getElementById('oa-btn-generate'); const spinner = document.getElementById('oa-loading-spinner'); const errBox = document.getElementById('oa-error-box-2');
-      btn.classList.add('hidden'); spinner.classList.remove('hidden'); spinner.classList.add('flex'); errBox.classList.add('hidden');
+      const btn = document.getElementById('oa-btn-generate');
+      const spinner = document.getElementById('oa-loading-spinner');
+      const errBox = document.getElementById('oa-error-box-2');
+
+      btn.classList.add('hidden');
+      spinner.classList.remove('hidden');
+      spinner.classList.add('flex');
+      errBox.classList.add('hidden');
       
       try {
-        const bodyData = { type: 'oa_review', data: { targetCountry: oaState.country, originalSpecification: document.getElementById('oa-original-spec').value, officeAction: oaState.officeActionFile, pendingClaims: document.getElementById('oa-pending-claims').value, amendedClaims: document.getElementById('oa-amended-claims').value, userDraftResponse: document.getElementById('oa-user-draft').value } };
+        const bodyData = { 
+          type: 'oa_review', 
+          data: { 
+            targetCountry: oaState.country, 
+            originalSpecification: document.getElementById('oa-original-spec').value, 
+            officeAction: oaState.officeActionFile, 
+            pendingClaims: document.getElementById('oa-pending-claims').value, 
+            amendedClaims: document.getElementById('oa-amended-claims').value, 
+            userDraftResponse: document.getElementById('oa-user-draft').value 
+          } 
+        };
         
-        let chunkCount = 0;
-        const jsonString = await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
-          chunkCount++;
-          const dots = ".".repeat((chunkCount % 3) + 1);
-          const spinnerText = spinner.querySelector('span');
-          if (spinnerText) spinnerText.innerText = `AI 검토 및 데이터 수신 중${dots}`;
+        // 💡 1. 3단계 화면으로 넘기고 결과창 동적 세팅 (스트리밍 준비)
+        goToOAStep(2);
+        const container = document.getElementById('oa-result-content');
+        container.innerHTML = `
+          <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+            <h3 class="text-lg font-black text-slate-900 flex items-center">💡 AI 논리 검토 리포트</h3>
+            <span id="oa-status-badge" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 animate-pulse">데이터 분석 및 수신 중...</span>
+          </div>
+          <div id="oa-stream-output" class="select-text text-sm text-slate-800 leading-loose whitespace-pre-wrap font-medium"></div>
+        `;
+
+        const outputDiv = document.getElementById('oa-stream-output');
+        const statusBadge = document.getElementById('oa-status-badge');
+        let isFirst = true;
+        let accText = "";
+
+        // 💡 2. 텍스트 포매팅 (기존 JSON의 예쁜 박스 느낌을 마크다운 CSS로 구현)
+        const formatText = (text) => text
+          .replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/\*\*(.*?)\*\*/g, `<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>`)
+          .replace(/### (.*)/g, '<br><h3 class="text-[15px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl inline-block mt-6 mb-3 shadow-sm w-full">$1</h3>');
+
+        // 💡 3. 실시간 스트리밍 수신 및 화면 렌더링
+        await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
+          if (isFirst) {
+            isFirst = false;
+            statusBadge.innerText = "리포트 작성 중 ✍️";
+            statusBadge.classList.remove('animate-pulse');
+          }
+          accText += textChunk;
+          outputDiv.innerHTML = formatText(accText);
+          // 텍스트가 늘어날 때마다 자동 스크롤 다운
+          container.parentElement.scrollTop = container.parentElement.scrollHeight;
         });
         
-        const cleanJson = jsonString.replace(/```json/g, '').replace(/```/g, '').trim(); 
-        renderOAResult(JSON.parse(cleanJson)); 
-        goToOAStep(2);
-
-        // 🟢 GA4 추가 부분: OA 검토 성공
+        // 💡 4. 완료 처리
+        statusBadge.innerText = "✅ 검토 완료";
+        statusBadge.className = "text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm";
         gtag('event', 'feature_execution', { 'feature_name': 'oa_review', 'status': 'success', 'error_message': 'none' });
 
       } catch (error) { 
-        // 🟢 GA4 추가 부분: OA 검토 에러
         gtag('event', 'feature_execution', { 'feature_name': 'oa_review', 'status': 'error', 'error_message': error.message });
-        
-        errBox.innerText = `⚠️ 에러 발생: ${error.message}`; errBox.classList.remove('hidden'); 
+        errBox.innerText = `⚠️ 에러 발생: ${error.message}`; 
+        errBox.classList.remove('hidden'); 
+        goToOAStep(1); // 에러가 나면 입력창으로 다시 돌려보냄
       } finally { 
-        btn.classList.remove('hidden'); spinner.classList.add('hidden'); spinner.classList.remove('flex'); 
-        const spinnerText = spinner.querySelector('span');
-        if (spinnerText) spinnerText.innerText = "AI 검토 중 (최대 1~2분)...";
+        btn.classList.remove('hidden'); 
+        spinner.classList.add('hidden'); 
+        spinner.classList.remove('flex'); 
       }
     }
 
