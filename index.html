@@ -151,6 +151,13 @@ textarea, input {
           <button onclick="goToDraftStep(0)" class="px-8 py-3 text-gray-400 font-bold hover:text-indigo-600 transition-colors">이전 단계</button>
           <div id="draft-loading-spinner" class="hidden items-center space-x-4 pr-4"><div class="w-5 h-5 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><span class="text-sm font-bold text-indigo-600">AI 문서 작성 중...</span></div>
           <button id="btn-generate-draft" disabled onclick="generateDraft()" class="px-12 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-40 flex items-center transition-all active:scale-95">최종 문서 생성</button>
+
+<div class="flex items-center space-x-3">
+  <select id="model-draft" class="px-4 py-4 bg-white border border-gray-200 rounded-2xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer">
+    <option value="gemini-3.1-pro-preview" selected>Pro 모델 (고품질)</option>
+    <option value="gemini-3.1-flash">Light 모델 (초고속)</option>
+  </select>
+</div>
         </div>
       </div>
 
@@ -184,7 +191,14 @@ textarea, input {
           <ul id="targetFileList" class="mb-3 text-sm"></ul>
           <textarea id="manualRefsText" class="w-full h-24 p-3 border rounded-lg text-sm outline-none focus:border-slate-500" placeholder="수동 텍스트 입력"></textarea>
         </div>
-        <button id="btn-run-ids" onclick="runIDSAnalysis()" class="w-full py-4 rounded-xl bg-slate-900 text-white font-bold text-lg hover:bg-slate-800 transition"><span id="ids-btn-text">필터링 분석 실행</span></button>
+
+<div class="flex space-x-3 mt-4">
+  <select id="model-ids" class="w-1/3 px-4 py-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer">
+    <option value="gemini-3.1-pro-preview" selected>Pro 모델</option>
+    <option value="gemini-3.1-flash">Light 모델</option>
+  </select>
+  <button id="btn-run-ids" onclick="runIDSAnalysis()" class="w-2/3 py-4 rounded-xl bg-slate-900 text-white font-bold text-lg hover:bg-slate-800 transition"><span id="ids-btn-text">필터링 분석 실행</span></button>
+</div>
       </div>
       <div class="lg:col-span-7">
          <div id="ids-empty-state" class="h-full min-h-[500px] flex flex-col items-center justify-center border-2 border-dashed bg-white text-slate-400 rounded-xl"><h4 class="text-lg">분석 대기 중</h4></div>
@@ -204,15 +218,14 @@ textarea, input {
           <p class="text-slate-500 mt-1 text-sm">한국어 원문과 영문 번역본을 대조하여 원하는 항목을 검토하세요.</p>
         </div>
         <div class="flex items-center space-x-3 w-full md:w-auto">
-          <button onclick="clearCompareInputs()" class="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">전체 삭제</button>
-          
-          <button id="btn-run-trans" onclick="runCompare('trans')" class="px-6 py-2.5 text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors active:scale-95 flex items-center">
-            🌐 번역 검토
-          </button>
-          <button id="btn-run-def" onclick="runCompare('def')" class="px-6 py-2.5 text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors active:scale-95 flex items-center">
-            ⚖️ 기재불비 검토
-          </button>
-        </div>
+  <select id="model-compare" class="px-4 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer">
+    <option value="gemini-3.1-pro-preview" selected>Pro 모델</option>
+    <option value="gemini-3.1-flash">Light 모델</option>
+  </select>
+  <button onclick="clearCompareInputs()" class="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">전체 삭제</button>
+  <button id="btn-run-trans" onclick="runCompare('trans')" class="px-6 py-2.5 text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors active:scale-95 flex items-center">🌐 번역 검토</button>
+  <button id="btn-run-def" onclick="runCompare('def')" class="px-6 py-2.5 text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors active:scale-95 flex items-center">⚖️ 기재불비 검토</button>
+</div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <textarea id="kr-claim-input" placeholder="한국어 청구항 텍스트 입력..." class="min-h-[250px] p-6 text-sm font-mono border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white shadow-sm"></textarea>
@@ -308,7 +321,13 @@ textarea, input {
           <button onclick="goToOAStep(0)" class="px-8 py-3 text-gray-400 font-bold hover:text-indigo-600">이전 단계</button>
           <div id="oa-loading-spinner" class="hidden items-center space-x-4"><div class="w-5 h-5 border-2 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div><span class="text-sm font-bold text-indigo-600">AI 검토 중 (최대 1~2분)...</span></div>
           <button id="oa-btn-generate" disabled onclick="runOAReview()" class="px-12 py-4 bg-indigo-600 text-white rounded-2xl font-bold disabled:opacity-40 hover:bg-indigo-700 transition-all">논리 검토 시작</button>
-        </div>
+
+<div class="flex items-center space-x-3">
+  <select id="model-oa" class="px-4 py-4 bg-white border border-gray-200 rounded-2xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer">
+    <option value="gemini-3.1-pro-preview" selected>Pro 모델 (고품질)</option>
+    <option value="gemini-3.1-flash">Light 모델 (초고속)</option>
+  </select>
+</div>
       </div>
 
       <div id="oa-step-3" class="hidden flex-col h-full animate-fadeIn bg-white">
@@ -732,12 +751,16 @@ textarea, input {
         if (preVal) combinedAmendment += `[보정 전 명세서]\n${preVal}\n\n`;
         if (amendVal) combinedAmendment += `[보정서 원문]\n${amendVal}`;
 
-        const bodyData = { type: 'draft', data: { 
-            originalContext: document.getElementById('originalContext').value, 
-            amendmentContext: combinedAmendment, // ⬅️ 합쳐진 텍스트를 전송
-            userDraftResponse: document.getElementById('userDraftResponse').value, 
-            userTemplate: document.getElementById('userTemplate').value 
-        } };
+        const bodyData = { 
+  type: 'draft', 
+  model: document.getElementById('model-draft').value, // 🔥 추가된 모델 파라미터
+  data: { 
+    originalContext: document.getElementById('originalContext').value, 
+    amendmentContext: combinedAmendment, 
+    userDraftResponse: document.getElementById('userDraftResponse').value, 
+    userTemplate: document.getElementById('userTemplate').value 
+  } 
+};
         goToDraftStep(2); 
         
         await streamFetchGemini('/api/gemini', bodyData, (textChunk) => { 
@@ -871,9 +894,10 @@ textarea, input {
         
         let chunkCount = 0;
         const fullText = await streamFetchGemini('/api/gemini', { 
-          type: 'ids', 
-          data: { historyFiles: await processFiles(idsState.historyFiles), targetFiles: await processFiles(idsState.targetFiles), textInput } 
-        }, (textChunk) => {
+  type: 'ids', 
+  model: document.getElementById('model-ids').value, // 🔥 추가된 모델 파라미터
+  data: { historyFiles: await processFiles(idsState.historyFiles), targetFiles: await processFiles(idsState.targetFiles), textInput } 
+}, (textChunk) => {
           chunkCount++; 
           const dots = ".".repeat((chunkCount % 3) + 1); 
           btnText.innerText = `데이터 수신 및 분석 중${dots}`;
@@ -1002,7 +1026,11 @@ textarea, input {
 
       try {
         // 백엔드로 선택한 apiType 전송
-        await streamFetchGemini('/api/gemini', { type: apiType, data: { krText, enText } }, (chunk) => {
+        await streamFetchGemini('/api/gemini', { 
+  type: apiType, 
+  model: document.getElementById('model-compare').value, // 🔥 추가된 모델 파라미터
+  data: { krText, enText } 
+}, (chunk) => {
           if (isFirst) {
               isFirst = false;
               statusSpan.innerText = "답변 출력 중 ✍️";
@@ -1162,15 +1190,16 @@ textarea, input {
       try {
         const bodyData = { 
           type: 'oa_review', 
-          data: { 
-            targetCountry: oaState.country, 
-            originalSpecification: document.getElementById('oa-original-spec').value, 
-            officeAction: oaState.officeActionFile, 
-            pendingClaims: document.getElementById('oa-pending-claims').value, 
-            amendedClaims: document.getElementById('oa-amended-claims').value, 
-            userDraftResponse: document.getElementById('oa-user-draft').value 
-          } 
-        };
+          model: document.getElementById('model-oa').value, // 🔥 추가된 모델 파라미터
+  data: { 
+    targetCountry: oaState.country, 
+    originalSpecification: document.getElementById('oa-original-spec').value, 
+    officeAction: oaState.officeActionFile, 
+    pendingClaims: document.getElementById('oa-pending-claims').value, 
+    amendedClaims: document.getElementById('oa-amended-claims').value, 
+    userDraftResponse: document.getElementById('oa-user-draft').value 
+  } 
+};
         
         // 💡 1. 3단계 화면으로 넘기고 결과창 동적 세팅 (스트리밍 준비)
         goToOAStep(2);
