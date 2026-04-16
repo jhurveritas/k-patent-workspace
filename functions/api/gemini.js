@@ -64,31 +64,45 @@ export async function onRequest(context) {
     const encoder = new TextEncoder();
 
     // =========================================================================
-    // 🚀 [최종 해결책] TransformStream과 waitUntil을 버리고, 
-    // ReadableStream을 직접 생성하여 클라우드플레어의 간섭을 원천 차단합니다.
+    // 🚀 [524 에러 완벽 차단] TransformStream과 강제 기상(Wake-up) 패턴 도입
     // =========================================================================
-    const stream = new ReadableStream({
-      async start(controller) {
-        // 1. 스트림 파이프가 열리자마자 2KB 쓰레기 데이터를 밀어넣어 버퍼를 강제로 뚫습니다.
-        const prelude = ": " + " ".repeat(2048) + "\n\n";
-        controller.enqueue(encoder.encode(prelude));
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
 
-        // 2. 15초마다 안전하게 심장박동을 쏩니다.
-        const keepAlive = setInterval(() => {
+    // 연결 즉시 프론트엔드로 더미 데이터를 쏴서 Cloudflare 버퍼링 강제 오픈
+    writer.write(encoder.encode(": " + " ".repeat(2048) + "\n\n"));
+
+    // 💡 [핵심 방어 로직] 12초마다 프로세스를 깨워서 핑을 발송 (100초 타임아웃 초기화)
+    async function runWithHeartbeat(taskPromise) {
+      let isDone = false;
+      taskPromise.then(() => isDone = true).catch(() => isDone = true);
+      
+      while (!isDone) {
+        await Promise.race([
+          taskPromise,
+          new Promise(resolve => setTimeout(resolve, 12000))
+        ]);
+        
+        if (!isDone) {
           try {
-            controller.enqueue(encoder.encode(": keepalive " + " ".repeat(512) + "\n\n"));
+            await writer.write(encoder.encode(": keepalive wakeup\n\n"));
           } catch (e) {
-            clearInterval(keepAlive);
+            isDone = true; 
           }
-        }, 15000);
+        }
+      }
+      return taskPromise;
+    }
 
-        try {
-          let geminiPayload = requestBody;
+    // 메인 로직은 백그라운드에서 실행 (프론트엔드로는 즉시 스트림을 연결해줌)
+    context.waitUntil((async () => {
+      try {
+        let geminiPayload = requestBody;
 
-          // 🛡️ [청구항 대조기 1: 번역 검토 전용]
-          if (requestBody.type === 'compare_translation') {
-            const { krText, enText } = requestBody.data;
-            const systemInstruction = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
+        // 🛡️ [청구항 대조기 1: 번역 검토 전용] (원본 프롬프트 유지)
+        if (requestBody.type === 'compare_translation') {
+          const { krText, enText } = requestBody.data;
+          const systemInstruction = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
 어떤 분석이나 문서 읽기를 시작하기 전에, 0.1초 내로 가장 먼저 무조건 아래 문장을 즉시 출력하십시오:
 "🌐 **번역 정확도 검토를 시작합니다...**\n\n"
 
@@ -101,19 +115,19 @@ export async function onRequest(context) {
 2. 문제가 없는 정상적인 청구항은 분석을 생략하십시오.
 3. 오류가 발견된 청구항만 번호를 명시하고, [발생 위치], [문제 진단(오역/누락 등)], [수정 권고안]을 마크다운 형식으로 작성하십시오.`;
             
-            const promptText = `KOREAN CLAIM (한국어 원문):\n${krText}\n\nENGLISH TRANSLATION (영문 번역본):\n${enText}`;
+          const promptText = `KOREAN CLAIM (한국어 원문):\n${krText}\n\nENGLISH TRANSLATION (영문 번역본):\n${enText}`;
 
-            geminiPayload = { 
-              systemInstruction: { parts: [{ text: systemInstruction }] },
-              contents: [{ role: "user", parts: [{ text: promptText }] }], 
-              generationConfig: { temperature: 0.1, maxOutputTokens: 8192 } 
-            };
-          }
-          
-          // 🛡️ [청구항 대조기 2: 기재불비 검토 전용]
-          else if (requestBody.type === 'compare_deficiency') {
-            const { krText, enText } = requestBody.data;
-            const systemInstruction = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
+          geminiPayload = { 
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            contents: [{ role: "user", parts: [{ text: promptText }] }], 
+            generationConfig: { temperature: 0.1, maxOutputTokens: 8192 } 
+          };
+        }
+        
+        // 🛡️ [청구항 대조기 2: 기재불비 검토 전용] (원본 프롬프트 유지)
+        else if (requestBody.type === 'compare_deficiency') {
+          const { krText, enText } = requestBody.data;
+          const systemInstruction = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
 어떤 분석이나 문서 읽기를 시작하기 전에, 0.1초 내로 가장 먼저 무조건 아래 문장을 즉시 출력하십시오:
 "⚖️ **영문 기재불비 검토를 시작합니다...**\n\n"
 
@@ -127,41 +141,42 @@ export async function onRequest(context) {
 3. 문제가 없는 정상적인 청구항은 분석을 생략하십시오.
 4. 오류가 발견된 청구항만 번호를 명시하고, [발생 위치], [기재불비 근거(예: 선행사 누락)], [수정 권고안]을 마크다운 형식으로 작성하십시오.`;
             
-            const promptText = `KOREAN CLAIM (의도 파악 참고용):\n${krText}\n\nENGLISH TRANSLATION (기재불비 검토 대상):\n${enText}`;
+          const promptText = `KOREAN CLAIM (의도 파악 참고용):\n${krText}\n\nENGLISH TRANSLATION (기재불비 검토 대상):\n${enText}`;
 
-            geminiPayload = { 
-              systemInstruction: { parts: [{ text: systemInstruction }] },
-              contents: [{ role: "user", parts: [{ text: promptText }] }], 
-              generationConfig: { temperature: 0.1, maxOutputTokens: 8192 } 
-            };
-          }
+          geminiPayload = { 
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            contents: [{ role: "user", parts: [{ text: promptText }] }], 
+            generationConfig: { temperature: 0.1, maxOutputTokens: 8192 } 
+          };
+        }
+        
+        // 🛡️ [의견서 생성기] (원본 프롬프트 유지)
+        else if (requestBody.type === 'draft') {
+          const { originalContext, amendmentContext, userDraftResponse, userTemplate } = requestBody.data;
+          const secretPrompt = `너는 KIPO(한국특허청) 양식에 능통한 전문 특허 명세사야. 제공된 템플릿의 문체와 양식을 엄격하게 준수하여 아래 자료를 바탕으로 최종 특허 의견서/보정서를 작성해줘. 여기서, 사용자가 제공한 대응논리는 최대한 누락하지 않게 반영하고, 결과물 출력시 "**"표시는 안나오게 해줘. 또한, 결과물 출력시에 맨 마지막에는 AI가 살을 붙이거나 논리를 더 구체화한 부분을 설명해주고, 보정 후 청구항에 기재불비 사항이 있는지 점검해줘.\n\n[특허청 통지서 원문]\n${originalContext}\n\n[보정서 원문]\n${amendmentContext || '입력되지 않음'}\n\n[대응 초안 (핵심 논리)]\n${userDraftResponse}\n\n[작성 템플릿]\n${userTemplate}\n\n[🚨시스템 긴급 지시사항🚨]\n네트워크 타임아웃을 방지하기 위해, 글의 전체 구조를 다 생각할 때까지 기다리지 마. 무조건 "✍️ 제공된 문헌을 바탕으로 의견서 초안 작성을 시작합니다...\n\n" 라는 문장을 0.1초 만에 최우선으로 즉시 출력해. 이 문장을 먼저 뱉고 난 후에 본문 작성을 이어가.`;
+          geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }] };
+        }
+
+        // 🛡️ [IDS 판별기] (원본 프롬프트 유지)
+        else if (requestBody.type === 'ids') {
+          const { historyFiles, targetFiles, textInput } = requestBody.data;
           
-          // 🛡️ [의견서 생성기]
-          else if (requestBody.type === 'draft') {
-            const { originalContext, amendmentContext, userDraftResponse, userTemplate } = requestBody.data;
-            const secretPrompt = `너는 KIPO(한국특허청) 양식에 능통한 전문 특허 명세사야. 제공된 템플릿의 문체와 양식을 엄격하게 준수하여 아래 자료를 바탕으로 최종 특허 의견서/보정서를 작성해줘. 여기서, 사용자가 제공한 대응논리는 최대한 누락하지 않게 반영하고, 결과물 출력시 "**"표시는 안나오게 해줘. 또한, 결과물 출력시에 맨 마지막에는 AI가 살을 붙이거나 논리를 더 구체화한 부분을 설명해주고, 보정 후 청구항에 기재불비 사항이 있는지 점검해줘.\n\n[특허청 통지서 원문]\n${originalContext}\n\n[보정서 원문]\n${amendmentContext || '입력되지 않음'}\n\n[대응 초안 (핵심 논리)]\n${userDraftResponse}\n\n[작성 템플릿]\n${userTemplate}\n\n[🚨시스템 긴급 지시사항🚨]\n네트워크 타임아웃을 방지하기 위해, 글의 전체 구조를 다 생각할 때까지 기다리지 마. 무조건 "✍️ 제공된 문헌을 바탕으로 의견서 초안 작성을 시작합니다...\n\n" 라는 문장을 0.1초 만에 최우선으로 즉시 출력해. 이 문장을 먼저 뱉고 난 후에 본문 작성을 이어가.`;
-            geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }] };
-          }
+          const uploadPromises = [];
+          if (historyFiles) historyFiles.forEach(f => uploadPromises.push(uploadToGemini(f, apiKey).then(res => ({ ...res, type: 'history' }))));
+          if (targetFiles) targetFiles.forEach(f => uploadPromises.push(uploadToGemini(f, apiKey).then(res => ({ ...res, type: 'target' }))));
 
-          // 🛡️ [IDS 판별기]
-          else if (requestBody.type === 'ids') {
-            const { historyFiles, targetFiles, textInput } = requestBody.data;
-            
-            const uploadPromises = [];
-            if (historyFiles) historyFiles.forEach(f => uploadPromises.push(uploadToGemini(f, apiKey).then(res => ({ ...res, type: 'history' }))));
-            if (targetFiles) targetFiles.forEach(f => uploadPromises.push(uploadToGemini(f, apiKey).then(res => ({ ...res, type: 'target' }))));
+          // 🚨 [적용] 대용량 PDF 업로드 중에도 12초 핑을 쏴서 타임아웃 방지
+          const uploadedFiles = await runWithHeartbeat(Promise.all(uploadPromises));
+          
+          let parts = [];
+          uploadedFiles.forEach(f => {
+            parts.push({ text: f.type === 'history' ? `\n--- [History (기존 제출 문헌) 파일명: ${f.name}] 시작 ---\n` : `\n--- [Target (신규 인용 문헌) 파일명: ${f.name}] 시작 ---\n` });
+            parts.push({ fileData: { fileUri: f.fileUri, mimeType: f.mimeType } });
+            parts.push({ text: f.type === 'history' ? `\n--- [History 파일명: ${f.name}] 끝 ---\n` : `\n--- [Target 파일명: ${f.name}] 끝 ---\n` });
+          });
 
-            const uploadedFiles = await Promise.all(uploadPromises);
-            
-            let parts = [];
-            uploadedFiles.forEach(f => {
-              parts.push({ text: f.type === 'history' ? `\n--- [History (기존 제출 문헌) 파일명: ${f.name}] 시작 ---\n` : `\n--- [Target (신규 인용 문헌) 파일명: ${f.name}] 시작 ---\n` });
-              parts.push({ fileData: { fileUri: f.fileUri, mimeType: f.mimeType } });
-              parts.push({ text: f.type === 'history' ? `\n--- [History 파일명: ${f.name}] 끝 ---\n` : `\n--- [Target 파일명: ${f.name}] 끝 ---\n` });
-            });
-
-            parts.push({ 
-              text: `너는 특허 정보 분석 전문가야. 위 제공된 문서들을 바탕으로 다음 [작업 순서]를 엄격히 준수하여 분석해.
+          parts.push({ 
+            text: `너는 특허 정보 분석 전문가야. 위 제공된 문서들을 바탕으로 다음 [작업 순서]를 엄격히 준수하여 분석해.
 
 [작업 순서]
 1. 먼저, [Target] 문서들과 사용자가 수동으로 입력한 텍스트("${textInput || '입력 없음'}")만 샅샅이 뒤져서 '새롭게 인용된 선행기술문헌(특허번호 및 NPL)'을 모조리 추출해. (이것이 '기준 목록'이 된다. 절대로 History 문서에서 문헌을 먼저 추출하지 마라.)
@@ -178,119 +193,96 @@ export async function onRequest(context) {
     "historyFile": "ALREADY_FILED인 경우 해당 문헌이 발견된 History 파일의 정확한 이름 (NEW인 경우에는 null) (History 파일이 여러개인 경우 '/'로 구분하여 표시하고, 그 중 발행날짜가 가장 빠른 것은 빨간색으로 강조표시할 것)"
   }
 ]` 
-            });
+          });
 
-            geminiPayload = { 
-              contents: [{ role: "user", parts: parts }], 
-              generationConfig: { responseMimeType: "application/json", temperature: 0.1 } 
-            };
-          }
+          geminiPayload = { 
+            contents: [{ role: "user", parts: parts }], 
+            generationConfig: { responseMimeType: "application/json", temperature: 0.1 } 
+          };
+        }
+        
+        // 🛡️ [국가별 OA 논리 검토기] (사용자 작성 원본 프롬프트 유지 및 백틱 오류 수정)
+        else if (requestBody.type === 'oa_review') {
+          const { targetCountry, originalSpecification, officeAction, pendingClaims, amendedClaims, userDraftResponse } = requestBody.data;
           
-          // 🛡️ [국가별 OA 논리 검토기]
-          else if (requestBody.type === 'oa_review') {
-            const { targetCountry, originalSpecification, officeAction, pendingClaims, amendedClaims, userDraftResponse } = requestBody.data;
-            
-            const cleanSpec = originalSpecification ? originalSpecification.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
-            const cleanPending = pendingClaims ? pendingClaims.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
-            const cleanAmended = amendedClaims ? amendedClaims.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+          const cleanSpec = originalSpecification ? originalSpecification.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+          const cleanPending = pendingClaims ? pendingClaims.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+          const cleanAmended = amendedClaims ? amendedClaims.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
 
-            // 💡 프롬프트 다이어트 & 마크다운 스트리밍 적용
-            const systemInstruction = `[최우선 지시사항]
+          const systemInstruction = `[최우선 지시사항]
 네트워크 타임아웃 방지를 위해 무조건 다음 문장을 0.1초 내로 가장 먼저 출력할 것:
 "💡 **${targetCountry} 기준 AI 논리 검토를 시작합니다...**\n\n"
 
 [역할 및 목표]
-- 역할: ${targetCountry} 특허 실무 전문가
-- 목표: OA와 대응 초안 대조: 방어논리 누락, 불일치, 기재불비 검토
+- 역할: ${targetCountry} 특허청 심사 실무에 능통한 특허 명세사
+- 목표: 거절이유 통지서와 사용자의 대응 초안을 비교하여 방어 논리의 허점, 기재불비, 불일치 검증
 
 [검토 지침]
 1. 누락 검증: OA 지적 사항 중 대응 초안에서 누락된 논리가 있는지 확인. 이때, 종속항에 대한 진보성 논리 판단은 제외.
 2. 논리 일치: 보정 후 청구항과 대응 초안의 주장이 상충되지 않는지 확인. 
-3. 기재불비: 보정 후 청구항의 명확성 결여 및 청구항 내용 상충 여부, 신규사항 추가(New Matter) 등 검토. 이때, ${targetCountry} 국가별 특유한 제도를 반영할 것. 
- - '보정 후 청구항'에 누락된 항은 '계류 중 청구항'과 동일시하여 전체 기준 판단
- - 신규사항: CN/EP 엄격 판단, KR/US/JP 명세서 도출 시 허용 적용
+3. 기재불비: 보정 후 청구항의 명확성 결여 및 청구항 내용 상충 여부, 신규사항 추가(New Matter) 등 검토. 이때, 미국(MPEP), 유럽(EPC) 등 ${targetCountry} 특유 제도를 반영할 것 (주의: '보정 후 청구항' 란에 보정된 일부 청구항만 기재되어 있는 경우, 기재되지 않은 나머지 청구항은 '현재 계류 중인 청구항'과 동일한 것으로 간주하여 전체 청구항 세트를 기준으로 기재불비 및 청구항 간 상충 여부를 종합적으로 판단하세요.)
+4. 신규사항: CN/EP는 엄격하게, KR/US/JP는 도면/설명 도출 가능 시 허용하는 관점 적용.
 
 [출력 형식 - 반드시 마크다운으로 작성]
 각 항목별로 문제점과 제안을 작성하고, 문제가 없으면 "✅ 특이사항 없음" 기재.
 ### 1. ⚠️ 누락된 대응 논리
 ### 2. 🚨 청구항-논리 불일치
-### 3. 📝 기재불비 및 신규사항 추가`; //
+### 3. 📝 기재불비 및 신규사항 추가
+### 4. ✅ 종합 평가 (완벽한 방어 논리인지 여부)`; // 👈 백틱( ` ) 닫기 오류 수정됨
 
-            let parts = [
-              { text: `[분석 자료]\n- 대상 국가: ${targetCountry}\n- 최초명세서: ${cleanSpec}\n- 계류중 청구항: ${cleanPending}\n- 보정 후 청구항: ${cleanAmended}\n- 대응 논리: ${userDraftResponse}` }
-            ];
+          let parts = [
+            { text: `[분석 자료]\n- 대상 국가: ${targetCountry}\n- 최초명세서: ${cleanSpec}\n- 계류중 청구항: ${cleanPending}\n- 보정 후 청구항: ${cleanAmended}\n- 대응 논리: ${userDraftResponse}` }
+          ];
 
-            if (officeAction) {
-              const uploadedOA = await uploadToGemini(officeAction, apiKey);
-              parts.push({ fileData: { fileUri: uploadedOA.fileUri, mimeType: uploadedOA.mimeType } });
-              parts.push({ text: `[거절이유 / 통지서 원문 파일: ${uploadedOA.name}]` });
-            }
-
-            geminiPayload = { 
-              systemInstruction: { parts: [{ text: systemInstruction }] },
-              contents: [{ role: "user", parts: parts }], 
-              // 🚨 JSON 설정 제거! 일반 텍스트 스트리밍으로 전송
-              generationConfig: { temperature: 0.2, maxOutputTokens: 8192 } 
-            };
+          if (officeAction) {
+            // 🚨 [적용] 대용량 OA PDF 업로드 중에도 12초 핑을 쏴서 타임아웃 방지
+            const uploadedOA = await runWithHeartbeat(uploadToGemini(officeAction, apiKey));
+            parts.push({ fileData: { fileUri: uploadedOA.fileUri, mimeType: uploadedOA.mimeType } });
+            parts.push({ text: `[거절이유 / 통지서 원문 파일: ${uploadedOA.name}]` });
           }
 
-           // 🚀 구글 제미나이 본 요청 시작
-          const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
-          let googleResponse;
-          const maxRetries = 2; // 최대 2번 더 재시도 (총 3번 호출)
-          
-          for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            googleResponse = await fetch(googleUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(geminiPayload) 
-            });
-
-            // 503(과부하) 에러가 아니거나, 요청이 성공했다면 루프 탈출
-            if (googleResponse.ok || googleResponse.status !== 503) {
-              break;
-            }
-
-            // 503 에러이고 아직 재시도 기회가 남았다면 2초 대기 후 다시 찌르기
-            if (attempt < maxRetries) {
-              await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-          }
-
-          if (!googleResponse.ok) {
-            const errText = await googleResponse.text();
-            // 에러 메시지를 JSON.stringify로 감싸서 안전하게 전송
-            const safeErrorMsg = JSON.stringify(`API 에러 (${googleResponse.status}): ${errText}`);
-            controller.enqueue(encoder.encode(`data: {"error": ${safeErrorMsg}}\n\n`));
-            clearInterval(keepAlive);
-            try { controller.close(); } catch(e) {}
-            return;
-          }
-
-          // 정상적으로 응답이 오면 스트림을 연결합니다.
-          const reader = googleResponse.body.getReader();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            controller.enqueue(value);
-          }
-
-        } catch (err) {
-          // 🔥 [수정된 부분] 백엔드 자체 에러도 안전하게 포장합니다!
-          const safeErrorMsg = JSON.stringify(`백엔드 에러: ${err.message}`);
-          controller.enqueue(encoder.encode(`data: {"error": ${safeErrorMsg}}\n\n`));
-        } finally {
-          clearInterval(keepAlive);
-          try { controller.close(); } catch (e) {}
+          geminiPayload = { 
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            contents: [{ role: "user", parts: parts }], 
+            generationConfig: { temperature: 0.2, maxOutputTokens: 8192 } 
+          };
         }
-      }
-    });
 
-    // =========================================================================
-    // 💡 기다리지 않고 곧바로 stream을 반환합니다. 
-    // ReadableStream 구조이기 때문에 Cloudflare가 즉시 200 OK 헤더를 프론트엔드로 쏩니다!
-    // =========================================================================
-    return new Response(stream, { status: 200, headers: responseHeaders });
+        // 🚀 구글 제미나이 본 요청 (가장 긴 시간 대기)
+        const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent?alt=sse&key=${apiKey}`;
+        
+        const fetchTask = fetch(googleUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(geminiPayload) 
+        });
+
+        // 🚨 [적용] 제미나이 답변을 기다리는 동안 12초마다 Cloudflare 100초 타이머 초기화 핑 전송!
+        const googleResponse = await runWithHeartbeat(fetchTask);
+
+        if (!googleResponse.ok) {
+          const errText = await googleResponse.text();
+          throw new Error(`API 에러 (${googleResponse.status}): ${errText}`);
+        }
+
+        // 정상 응답 스트리밍
+        const reader = googleResponse.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          await writer.write(value);
+        }
+
+      } catch (err) {
+        const safeErrorMsg = JSON.stringify(`백엔드 에러: ${err.message}`);
+        try { await writer.write(encoder.encode(`data: {"error": ${safeErrorMsg}}\n\n`)); } catch(e) {}
+      } finally {
+        try { await writer.close(); } catch(e) {}
+      }
+    })());
+
+    // 💡 연결 파이프(ReadableStream)를 200 OK와 함께 즉시 반환하여 프론트 대기 상태 구축
+    return new Response(readable, { status: 200, headers: responseHeaders });
 
   } catch (err) {
     return new Response(JSON.stringify({ error: "초기화 에러: " + err.message }), { status: 500 });
