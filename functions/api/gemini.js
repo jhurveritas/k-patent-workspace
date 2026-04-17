@@ -140,11 +140,39 @@ async function uploadToGemini(fileData, apiKey) {
           }
           
           // 🛡️ [의견서 생성기]
-          else if (requestBody.type === 'draft') {
-            const { originalContext, amendmentContext, userDraftResponse, userTemplate } = requestBody.data;
-            const secretPrompt = `너는 KIPO(한국특허청) 양식에 능통한 최고 수준의 전문 특허 명세사야. 제공된 템플릿의 문체와 양식을 엄격하게 준수하여 아래 자료를 바탕으로 최종 특허 의견서/보정서를 작성해줘. 여기서, 사용자가 제공한 대응논리는 최대한 누락하지 않게 반영하고, 결과물 출력시 "**"표시는 안나오게 해줘. 또한, 결과물 출력시에 맨 마지막에는 AI가 살을 붙인 부분을 설명해주고, 보정 후 청구항에 기재불비 사항이 있는지 점검해줘.\n\n[특허청 통지서 원문]\n${originalContext}\n\n[보정서 원문]\n${amendmentContext || '입력되지 않음'}\n\n[대응 초안 (핵심 논리)]\n${userDraftResponse}\n\n[작성 템플릿]\n${userTemplate}\n\n[🚨시스템 긴급 지시사항🚨]\n네트워크 타임아웃을 방지하기 위해, 글의 전체 구조를 다 생각할 때까지 기다리지 마. 무조건 "✍️ 제공된 문헌을 바탕으로 의견서 초안 작성을 시작합니다...\n\n" 라는 문장을 0.1초 만에 최우선으로 즉시 출력해. 이 문장을 먼저 뱉고 난 후에 본문 작성을 이어가.`;
-            geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }] };
-          }
+else if (requestBody.type === 'draft') {
+  const { originalContext, amendmentContext, userDraftResponse, userTemplate } = requestBody.data;
+  
+  const secretPrompt = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
+어떤 분석이나 문서 작성을 시작하기 전에, 0.1초 내로 가장 먼저 무조건 아래 문장을 즉시 출력하십시오:
+"✍️ 제공된 문헌을 바탕으로 의견서 초안 작성을 시작합니다...\n\n"
+
+[역할 및 목표]
+당신은 KIPO(한국특허청) 양식과 특허 실무에 능통한 최고 수준의 전문 특허 명세사입니다.
+당신의 임무는 입력된 자료와 템플릿을 바탕으로 심사관의 거절이유를 극복하기 위한 '최종 특허 의견서/보정서 초안'을 작성하는 것입니다.
+
+[작성 원칙 및 엄격한 제약 사항]
+1. 템플릿 엄수: 제공된 [작성 템플릿]의 문체, 어조, 양식, 목차 구조를 완벽하게 유지하십시오.
+2. 사용자 논리 보존: [대응 초안 (핵심 논리)]에 포함된 주장은 단 하나도 누락하지 않고 본문에 자연스럽게 녹여내십시오.
+3. 마크다운 볼드체 금지: 출력 결과물 전체에서 '**' 기호를 절대 사용하지 마십시오.
+4. 부록(Appendix) 작성 의무: 의견서 본문 작성이 모두 끝난 후, 문서 맨 마지막에 구별되는 구분선(---)을 긋고 다음 두 가지 항목을 반드시 별도로 요약해 주십시오.
+   - [AI 보충 논리]: AI가 논리적 완성도를 높이기 위해 추가로 살을 붙이거나 구체화한 부분 설명 (다만, 특별한 사정이 없는 한 논리 보충은 최대한 자제하시오.)
+   - [기재불비 점검]: [보정서 원문]의 청구항에 대해 선행사 불일치 등 기재불비 사항이 남아있는지 점검한 결과
+
+[특허청 통지서 원문]
+${originalContext}
+
+[보정서 원문]
+${amendmentContext || '입력되지 않음'}
+
+[대응 초안 (핵심 논리)]
+${userDraftResponse}
+
+[작성 템플릿]
+${userTemplate}`;
+
+  geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }] };
+}
 
           // 🛡️ [IDS 판별기]
           else if (requestBody.type === 'ids') {
