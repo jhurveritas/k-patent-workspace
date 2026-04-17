@@ -1061,16 +1061,25 @@ textarea, input {
     let oaStep = 0;
 
     function goToOAStep(step) {
-  if (step === 1) {
-    // 💡 !oaState.country 조건이 맨 앞에 추가되었습니다.
-    if (!oaState.country || !document.getElementById('oa-original-spec').value || !document.getElementById('oa-pending-claims').value || !document.getElementById('oa-amended-claims').value || !oaState.officeActionFile) { 
-        const errBox = document.getElementById('oa-error-box-1');
-        errBox.innerText = "⚠️ 대상 국가를 포함한 모든 필수 항목을 채워주세요."; // 에러 문구 업데이트
-        errBox.classList.remove('hidden'); 
-        return; 
+      if (step === 1) {
+        // 💡 국가 선택 여부(!oaState.country) 체크
+        if (!oaState.country || !document.getElementById('oa-original-spec').value || !document.getElementById('oa-pending-claims').value || !document.getElementById('oa-amended-claims').value || !oaState.officeActionFile) { 
+            const errBox = document.getElementById('oa-error-box-1');
+            errBox.innerText = "⚠️ 대상 국가를 포함한 모든 필수 항목을 채워주세요.";
+            errBox.classList.remove('hidden'); 
+            return; 
+        }
+        document.getElementById('oa-error-box-1').classList.add('hidden');
+      }
+      
+      // 👇 이전 답변에서 누락되었던 실제 화면 전환(Step 이동) 로직과 닫는 괄호입니다.
+      oaStep = step; 
+      updateInd('oa', step);
+      [0,1,2].forEach(i => { 
+        document.getElementById(`oa-step-${i+1}`).classList.toggle('hidden', i !== oaStep); 
+        document.getElementById(`oa-step-${i+1}`).classList.toggle('flex', i === oaStep); 
+      });
     }
-    document.getElementById('oa-error-box-1').classList.add('hidden');
-  }
 
     function setOACountry(code) {
       oaState.country = code; const btns = document.querySelectorAll('.oa-btn'); const codeMap = { 'KR': 'KIPO', 'US': 'USPTO', 'EP': 'EPO', 'JP': 'JPO', 'CN': 'CNIPA' };
