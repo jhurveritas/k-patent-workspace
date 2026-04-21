@@ -778,7 +778,7 @@ textarea, input {
         statusTitle.innerText = "작성 완료"; 
 
         // 🟢 GA4 추가 부분: 의견서 생성 성공
-        gtag('event', 'feature_execution', { 'feature_name': 'draft', 'status': 'success', 'error_message': 'none' });
+        gtag('event', 'feature_execution', { 'feature_name': 'draft', 'model_name': document.getElementById('model-draft').value, 'status': 'success', 'error_message': 'none' });
 
       } catch (error) { 
         clearInterval(loadingTimer); // 에러 시에도 타이머 종료
@@ -787,10 +787,10 @@ textarea, input {
         // 이미 받아온 글자가 100자 이상이라면, 단순 네트워크 끊김으로 간주하고 에러 무시!
         if (currentText.length > 100) {
           document.getElementById('draft-status-title').innerText = "작성 완료 (연결 지연으로 일괄 출력됨)";
-          gtag('event', 'feature_execution', { 'feature_name': 'draft', 'status': 'success_with_delay', 'error_message': 'none' });
+          gtag('event', 'feature_execution', { 'feature_name': 'draft', 'model_name': document.getElementById('model-draft').value, 'status': 'success_with_delay', 'error_message': 'none' });
         } else {
           // 진짜 데이터가 안 들어온 초기 에러일 경우에만 알림창 띄우기
-          gtag('event', 'feature_execution', { 'feature_name': 'draft', 'status': 'error', 'error_message': error.message });
+          gtag('event', 'feature_execution', { 'feature_name': 'draft', 'model_name': document.getElementById('model-draft').value, 'status': 'error', 'error_message': error.message });
           alert("🚨 에러 발생:\n" + error.message); 
           goToDraftStep(1); 
         }
@@ -950,10 +950,10 @@ textarea, input {
         document.getElementById('res-total').innerText = resArr.length; 
         document.getElementById('res-new').innerText = resArr.filter(r => r.status === 'NEW').length;
 
-        gtag('event', 'feature_execution', { 'feature_name': 'ids', 'status': 'success', 'error_message': 'none' });
+        gtag('event', 'feature_execution', { 'feature_name': 'ids', 'model_name': document.getElementById('model-ids').value, 'status': 'success', 'error_message': 'none' });
 
       } catch (e) { 
-        gtag('event', 'feature_execution', { 'feature_name': 'ids', 'status': 'error', 'error_message': e.message });
+        gtag('event', 'feature_execution', { 'feature_name': 'ids', 'model_name': document.getElementById('model-ids').value, 'status': 'error', 'error_message': e.message });
         
         // 🚨 [핵심 방어 로직] 팝업창 대신 화면 한가운데에 에러 원인을 대문짝만하게 박제해버립니다!
         document.getElementById('ids-empty-state').classList.add('hidden');
@@ -1043,12 +1043,13 @@ textarea, input {
         
         statusSpan.innerText = "✅ 검토 완료";
         statusSpan.className = "text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg";
-        gtag('event', 'feature_execution', { 'feature_name': apiType, 'status': 'success' });
+        gtag('event', 'feature_execution', { 'feature_name': apiType, 'model_name': document.getElementById('model-compare').value, 'status': 'success' });
 
       } catch (e) {
         statusSpan.innerText = "🚨 에러 발생";
         statusSpan.className = "text-xs font-bold text-rose-700 bg-rose-100 px-3 py-1.5 rounded-lg";
         outputDiv.innerHTML += `\n\n<div class="p-4 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">오류: ${e.message}</div>`;
+        gtag('event', 'feature_execution', { 'feature_name': apiType, 'model_name': document.getElementById('model-compare').value, 'status': 'error', 'error_message': e.message });
       } finally {
         // 완료 후 버튼 다시 활성화
         btnTrans.disabled = false; btnDef.disabled = false;
@@ -1251,10 +1252,10 @@ textarea, input {
         // 💡 4. 완료 처리
         statusBadge.innerText = "✅ 검토 완료";
         statusBadge.className = "text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm";
-        gtag('event', 'feature_execution', { 'feature_name': 'oa_review', 'status': 'success', 'error_message': 'none' });
+        gtag('event', 'feature_execution', { 'feature_name': 'oa_review', 'model_name': document.getElementById('model-oa').value, 'status': 'success', 'error_message': 'none' });
 
       } catch (error) { 
-        gtag('event', 'feature_execution', { 'feature_name': 'oa_review', 'status': 'error', 'error_message': error.message });
+        gtag('event', 'feature_execution', { 'feature_name': 'oa_review', 'model_name': document.getElementById('model-oa').value, 'status': 'error', 'error_message': error.message });
         errBox.innerText = `⚠️ 에러 발생: ${error.message}`; 
         errBox.classList.remove('hidden'); 
         goToOAStep(1); // 에러가 나면 입력창으로 다시 돌려보냄
