@@ -267,7 +267,8 @@ ${userTemplate}`;
           }
 
            // 🚀 구글 제미나이 본 요청 시작
-          const targetModel = requestBody.model || "gemini-2.5-pro";
+          const fallbackModel = requestBody.type === 'ids' ? "gemini-3.1-pro-preview" : "gemini-2.5-pro";
+const targetModel = requestBody.model || fallbackModel;
 const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
           let googleResponse;
           const maxRetries = 2; // 최대 2번 더 재시도 (총 3번 호출)
