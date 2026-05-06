@@ -121,14 +121,21 @@ textarea, input {
   </div>
   <textarea id="originalContext" oninput="checkDraftStep1()" class="flex-grow p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm leading-relaxed bg-gray-50/30 transition-all" placeholder="거절이유 통지서 원문을 직접 입력하시거나, PDF 파일을 이곳에 드래그 앤 드롭(또는 우측 상단 첨부) 해주세요."></textarea>
 </div>
-          <div class="flex flex-col space-y-3 h-full">
+         <div class="flex flex-col space-y-3 h-full">
   <div class="flex justify-between items-center">
-    <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">보정'전'명세서/보정 내용(보정'후'fin 첨부)</label>
+    <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">명세서 및 보정 내역 (FIN 첨부)</label>
     <button onclick="document.getElementById('draft-fin-file').click()" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold hover:bg-indigo-100 transition-colors shadow-sm">FIN 첨부</button>
     <input type="file" id="draft-fin-file" accept=".fin" class="hidden" onchange="extractTextFromFIN(event)">
   </div>
-  <textarea id="preAmendmentContext" class="flex-grow p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none" placeholder="보정 전 명세서 내용을 직접 입력하시거나, 보정 후 FIN 파일을 여기 또는 아래에 드래그 앤 드롭(또는 우측 상단 첨부) 해주세요."></textarea>
-  <textarea id="amendmentContext" class="flex-grow p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none" placeholder="보정서 원문 내용을 직접 입력하시거나, 보정 후 FIN 파일을 여기 또는 위에 드래그 앤 드롭(또는 우측 상단 첨부) 해주세요."></textarea>
+  
+  <!-- 1. 최초 명세서 (HLZ) -->
+  <textarea id="preAmendmentContext" class="flex-grow p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none" placeholder="[최초 명세서] FIN 파일 드롭 시 HLZ 자동 추출..."></textarea>
+  
+  <!-- 2. 과거 누적 보정 내역 (추가됨) -->
+  <textarea id="previousAmendments" class="h-28 p-4 rounded-xl border border-indigo-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-indigo-50/30 transition-all resize-none" placeholder="[과거 누적 보정 내역] 2차 이상의 보정인 경우, FIN 파일 내의 과거 DTA 파일들이 생성 시간순으로 자동 나열됩니다."></textarea>
+  
+  <!-- 3. 현재 보정서 (최신 DTA) -->
+  <textarea id="amendmentContext" class="flex-grow p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none" placeholder="[현재 보정서] FIN 파일 드롭 시 가장 최신 DTA 자동 추출..."></textarea>
 </div>
           <div class="flex flex-col space-y-3">
             <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">대응 초안 (핵심 논리)</label>
@@ -446,6 +453,7 @@ textarea, input {
       // 각 텍스트 입력창에 드래그 앤 드롭 기능 매핑
       setupTextareaDropZone('originalContext', 'pdf');         // 1. 거절이유 원문 (PDF 드롭)
       setupTextareaDropZone('preAmendmentContext', 'fin');     // 2. 보정 전 명세서 (FIN 드롭)
+      setupTextareaDropZone('previousAmendments', 'fin');      // 💡 추가: 가운데 창에 떨어뜨려도 작동하게 만듦
       setupTextareaDropZone('amendmentContext', 'fin');        // 3. 보정서 원문 (여기에 FIN을 드롭해도 똑같이 작동)
       setupTextareaDropZone('userTemplate', 'txt');            // 4. 템플릿 구조 (TXT 드롭)
       setupTextareaDropZone('oa-original-spec', 'oa_spec');
@@ -508,44 +516,46 @@ textarea, input {
       e.target.value = ''; // 파일 입력창 초기화
     }
 
-// 👇 쓸데없는 로직 제거: 처음에 DTA가 성공했던 가장 완벽하고 순수한 추출 방식
+// 👇 완전 자동화된 다중 보정서(FIN) 추출 로직
     async function extractTextFromFIN(e) {
       const file = e.target.files[0];
       if (!file) return;
 
       const preTextarea = document.getElementById('preAmendmentContext');
+      const prevTextarea = document.getElementById('previousAmendments');
       const amendTextarea = document.getElementById('amendmentContext');
 
-      preTextarea.value = "⏳ 보정 전 명세서(HLZ) 압축 해제 및 XML 추출 중...";
-      amendTextarea.value = "⏳ 보정서(DTA) 압축 해제 및 XML 추출 중...";
-      preTextarea.disabled = true; amendTextarea.disabled = true;
+      preTextarea.value = "⏳ 최초 명세서(HLZ) 추출 중...";
+      prevTextarea.value = "⏳ 과거 보정 이력 확인 중...";
+      amendTextarea.value = "⏳ 최신 보정서(DTA) 추출 중...";
+      preTextarea.disabled = true; prevTextarea.disabled = true; amendTextarea.disabled = true;
 
       try {
         const arrayBuffer = await file.arrayBuffer();
         const mainZip = await JSZip.loadAsync(arrayBuffer);
         
         let hlzFound = false; 
-        let dtaFound = false;
+        let dtaFiles = []; // 💡 여러 개의 DTA를 담을 배열
 
-        // 💡 가장 단순하고 확실한 방식: 처음에 보정서(DTA)가 성공했던 그 로직입니다!
+        // XML 텍스트 추출 헬퍼 함수
         const extractXML = async (zipEntry) => {
           const innerBuffer = await zipEntry.async("arraybuffer");
           const innerZip = await JSZip.loadAsync(innerBuffer);
           
           for (const innerPath in innerZip.files) {
             if (innerPath.toLowerCase().endsWith('.xml')) {
-              // 복잡한 인코딩 변환 없이 표준 텍스트로 바로 뽑습니다.
               return await innerZip.files[innerPath].async("string");
             }
           }
           return null;
         };
 
+        // 1. FIN 내부의 모든 파일 스캔
         for (const relativePath in mainZip.files) {
           const entry = mainZip.files[relativePath];
+          const ext = relativePath.toLowerCase();
           
-          // 1. HLZ 처리 (압축 풀기 적용!)
-          if (relativePath.toLowerCase().endsWith('.hlz')) {
+          if (ext.endsWith('.hlz')) {
             hlzFound = true;
             try {
               const xmlText = await extractXML(entry);
@@ -553,27 +563,61 @@ textarea, input {
             } catch (err) { preTextarea.value = "🚨 HLZ 추출 실패: " + err.message; }
           }
           
-          // 2. DTA 처리 (처음 성공했던 상태로 원복)
-          if (relativePath.toLowerCase().endsWith('.dta')) {
-            dtaFound = true;
-            try {
-              const xmlText = await extractXML(entry);
-              amendTextarea.value = xmlText ? xmlText.trim() : "DTA 안에 XML 파일이 없습니다.";
-            } catch (err) { amendTextarea.value = "🚨 DTA 추출 실패: " + err.message; }
+          if (ext.endsWith('.dta')) {
+            dtaFiles.push({
+              name: entry.name,
+              date: entry.date, // JSZip이 읽어온 파일 생성/수정 시간
+              entry: entry
+            });
           }
         }
 
         if (!hlzFound) preTextarea.value = "FIN 파일 내에 HLZ 파일이 없습니다.";
-        if (!dtaFound) amendTextarea.value = "FIN 파일 내에 DTA 파일이 없습니다.";
+
+        // 2. DTA 파일 날짜 정렬 및 분배
+        if (dtaFiles.length > 0) {
+          // 날짜 오름차순 정렬 (과거 ➔ 최신 순서)
+          dtaFiles.sort((a, b) => a.date - b.date);
+
+          // 가장 마지막 요소(가장 최신 파일)를 꺼내서 3번 창에 삽입
+          const latestDta = dtaFiles.pop();
+          try {
+            const xmlText = await extractXML(latestDta.entry);
+            amendTextarea.value = xmlText ? xmlText.trim() : "DTA 안에 XML 파일이 없습니다.";
+          } catch (err) { amendTextarea.value = "🚨 최신 DTA 추출 실패: " + err.message; }
+
+          // 나머지 과거 요소들이 있다면 2번 창에 시간 순서대로 누적 삽입
+          if (dtaFiles.length > 0) {
+            let prevTexts = [];
+            for (let i = 0; i < dtaFiles.length; i++) {
+              try {
+                const xmlText = await extractXML(dtaFiles[i].entry);
+                if (xmlText) {
+                  const dateStr = dtaFiles[i].date.toLocaleString('ko-KR');
+                  prevTexts.push(`--- [과거 보정서: ${dtaFiles[i].name} (생성일: ${dateStr})] ---\n${xmlText.trim()}`);
+                }
+              } catch(err) {
+                prevTexts.push(`--- [🚨 ${dtaFiles[i].name} 추출 실패] ---`);
+              }
+            }
+            prevTextarea.value = prevTexts.join('\n\n');
+          } else {
+            prevTextarea.value = "";
+            prevTextarea.placeholder = "과거 보정 이력이 발견되지 않았습니다. (1차 보정)";
+          }
+        } else {
+          amendTextarea.value = "FIN 파일 내에 DTA 파일이 없습니다.";
+          prevTextarea.value = "";
+        }
 
       } catch (error) {
-        preTextarea.value = "에러 발생"; amendTextarea.value = "에러 발생";
+        preTextarea.value = "에러 발생"; prevTextarea.value = "에러 발생"; amendTextarea.value = "에러 발생";
         alert("🚨 FIN 파일 분석 중 오류가 발생했습니다.\n" + error.message);
       } finally {
-        preTextarea.disabled = false; amendTextarea.disabled = false;
-        e.target.value = ''; // 다음 업로드를 위해 파일 입력창 초기화
+        preTextarea.disabled = false; prevTextarea.disabled = false; amendTextarea.disabled = false;
+        e.target.value = ''; // 파일 입력창 초기화
       }
-    } 
+    }
 
 // 👇 수정: OA 검토기의 최초명세서(Word, HLZ) 텍스트 추출 로직 (불필요한 인코딩 로직 완전 제거)
     async function extractTextForOASpec(e) {
@@ -744,23 +788,26 @@ textarea, input {
       }, 500); // 0.5초마다 텍스트 업데이트
 
       try {
-        // 👇 추가/수정: 백엔드를 수정하지 않기 위해, 두 개의 입력창 내용을 하나로 예쁘게 합쳐서 전송합니다.
+       // 👇 변경된 부분: 3개의 텍스트창 데이터를 논리적 흐름에 맞게 합침
         const preVal = document.getElementById('preAmendmentContext').value.trim();
+        const prevAmendVal = document.getElementById('previousAmendments').value.trim();
         const amendVal = document.getElementById('amendmentContext').value.trim();
+        
         let combinedAmendment = "";
-        if (preVal) combinedAmendment += `[보정 전 명세서]\n${preVal}\n\n`;
-        if (amendVal) combinedAmendment += `[보정서 원문]\n${amendVal}`;
+        if (preVal) combinedAmendment += `[최초 명세서(HLZ)]\n${preVal}\n\n`;
+        if (prevAmendVal) combinedAmendment += `[과거 누적 보정 내역 (1차, 2차 등 시간순 흐름)]\n${prevAmendVal}\n\n`;
+        if (amendVal) combinedAmendment += `[현재 제출할 보정서(최신 DTA)]\n${amendVal}`;
 
         const bodyData = { 
-  type: 'draft', 
-  model: document.getElementById('model-draft').value, // 🔥 추가된 모델 파라미터
-  data: { 
-    originalContext: document.getElementById('originalContext').value, 
-    amendmentContext: combinedAmendment, 
-    userDraftResponse: document.getElementById('userDraftResponse').value, 
-    userTemplate: document.getElementById('userTemplate').value 
-  } 
-};
+          type: 'draft', 
+          model: document.getElementById('model-draft').value,
+          data: { 
+            originalContext: document.getElementById('originalContext').value, 
+            amendmentContext: combinedAmendment, 
+            userDraftResponse: document.getElementById('userDraftResponse').value, 
+            userTemplate: document.getElementById('userTemplate').value 
+          } 
+        };
         goToDraftStep(2); 
         
         await streamFetchGemini('/api/gemini', bodyData, (textChunk) => { 
