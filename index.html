@@ -123,7 +123,7 @@ textarea, input {
 </div>
          <div class="flex flex-col space-y-3 h-full">
   <div class="flex justify-between items-center">
-    <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">명세서 및 보정 내역 (직접 입력 또는 FIN 첨부)</label>
+    <label class="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em]">명세서 및 보정내역 (직접 입력 또는 FIN 첨부)</label>
     <button onclick="document.getElementById('draft-fin-file').click()" class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold hover:bg-indigo-100 transition-colors shadow-sm">FIN 첨부</button>
     <input type="file" id="draft-fin-file" accept=".fin" class="hidden" onchange="extractTextFromFIN(event)">
   </div>
@@ -132,7 +132,7 @@ textarea, input {
   <textarea id="preAmendmentContext" class="flex-grow p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none" placeholder="[최초 명세서] 최초 명세서 원문을 직접 입력하시거나, FIN 파일 드롭 시 최초 명세서 추출..."></textarea>
   
   <!-- 2. 과거 누적 보정 내역 (추가됨) -->
-  <textarea id="previousAmendments" class="h-28 p-4 rounded-xl border border-indigo-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-indigo-50/30 transition-all resize-none" placeholder="[과거 누적 보정 내역] 2차 이상의 보정인 경우, 이전 보정내역들을 직접 입력하시거나, FIN 파일 드롭 시 이전 보정내역들이 자동 나열됩니다."></textarea>
+  <textarea id="previousAmendments" class="h-28 p-4 rounded-xl border border-indigo-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-indigo-50/30 transition-all resize-none" placeholder="[과거 누적 보정내역] 2차 이상의 보정인 경우, 이전 보정내역들을 직접 입력하시거나, FIN 파일 드롭 시 이전 보정내역들이 자동 나열됩니다."></textarea>
   
   <!-- 3. 현재 보정서 (최신 DTA) -->
   <textarea id="amendmentContext" class="flex-grow p-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-xs leading-relaxed bg-gray-50/30 transition-all resize-none" placeholder="[현재 보정서] 현재 보정서를 직접 입력하시거나, FIN 파일 드롭 시 가장 최근 보정사항 추출..."></textarea>
