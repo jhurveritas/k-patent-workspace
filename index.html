@@ -675,7 +675,19 @@ textarea, input {
         if (e.target && e.target.value !== undefined) e.target.value = ''; // 입력창 초기화
       }
     }
-
+// ================== Iframe (React) 통신 수신 전용 로직 ==================
+    window.addEventListener('message', (event) => {
+      // 메시지에 데이터가 있고, 우리가 약속한 'GA_EVENT' 타입인지 확인
+      if (event.data && event.data.type === 'GA_EVENT') {
+        gtag('event', 'feature_execution', { 
+          'feature_name': event.data.feature, // 'flowchart'가 자동으로 들어옵니다
+          'action_type': event.data.action,   // 'export_svg'가 자동으로 들어옵니다
+          'status': 'success', 
+          'error_message': 'none' 
+        });
+        console.log(`📊 GA 이벤트 전송 완료: ${event.data.feature} - ${event.data.action}`);
+      }
+    });
   
     // ================== 공통 탭 스위칭 ==================
     function switchTab(tab) { 
