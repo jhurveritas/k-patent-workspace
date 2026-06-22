@@ -675,17 +675,25 @@ textarea, input {
         if (e.target && e.target.value !== undefined) e.target.value = ''; // 입력창 초기화
       }
     }
-// ================== Iframe (React) 통신 수신 전용 로직 ==================
+// ================== Iframe (React) 통신 수신 전용 로직 (보안 보완 버전) ==================
     window.addEventListener('message', (event) => {
-      // 메시지에 데이터가 있고, 우리가 약속한 'GA_EVENT' 타입인지 확인
-      if (event.data && event.data.type === 'GA_EVENT') {
+      // 1. 보안 체크: 신뢰할 수 있는 구글 배포 도메인인지 확인 (선택 사항이지만 안전을 위해)
+      if (!event.origin.includes('run.app') && !event.origin.includes('localhost')) {
+        return; 
+      }
+
+      // 2. 구글 AI 스튜디오 Publish 환경에 따라 데이터가 event.data.data 형태로 한 번 더 감싸져서 넘어오는 경우가 있습니다.
+      const messageData = event.data?.data || event.data;
+
+      // 3. 우리가 약속한 'GA_EVENT' 타입인지 확인
+      if (messageData && messageData.type === 'GA_EVENT') {
         gtag('event', 'feature_execution', { 
-          'feature_name': event.data.feature, // 'flowchart'가 자동으로 들어옵니다
-          'action_type': event.data.action,   // 'export_svg'가 자동으로 들어옵니다
+          'feature_name': messageData.feature, // 'flowchart'
+          'action_type': messageData.action,   // 'export_svg'
           'status': 'success', 
           'error_message': 'none' 
         });
-        console.log(`📊 GA 이벤트 전송 완료: ${event.data.feature} - ${event.data.action}`);
+        console.log(`📊 [GA 수신 성공] 기능: ${messageData.feature} - 행동: ${messageData.action}`);
       }
     });
   
