@@ -89,6 +89,7 @@ textarea, input {
       <button id="tab-ids" onclick="switchTab('ids')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">IDS 판별기</button>
       <button id="tab-compare" onclick="switchTab('compare')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">한/영 청구항 대조기</button>
       <button id="tab-oa" onclick="switchTab('oa')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">국가별 OA 논리 검토기</button>
+      <button id="tab-flowchart" onclick="switchTab('flowchart')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">흐름도 생성기</button>
     </div>
   </div>
 
@@ -397,6 +398,11 @@ textarea, input {
 
   </main>
 
+```html
+  <main id="tool-flowchart" class="flex-grow flex flex-col w-full hidden h-[calc(100vh-64px)]">
+    <iframe src="https://patent-flowchart-generator-273913473477.asia-south1.run.app/" class="w-full h-full border-none"></iframe>
+  </main>
+  
 <script>
     // 💡 1. 전역 드래그 방지 (가장 강력한 브라우저 화면 낚아채기 차단)
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -674,7 +680,7 @@ textarea, input {
   
     // ================== 공통 탭 스위칭 ==================
     function switchTab(tab) { 
-      ['draft', 'ids', 'compare', 'oa', 'board'].forEach(t => {
+      ['draft', 'ids', 'compare', 'oa', 'board','flowchart'].forEach(t => {
         const el = document.getElementById(`tool-${t}`);
         if (el) el.classList.toggle('hidden', tab !== t); 
         
