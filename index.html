@@ -95,6 +95,7 @@ textarea, input {
           <span class="absolute -top-1 right-0 px-1.5 py-[2px] text-[8px] font-black text-white bg-gradient-to-r from-indigo-500 to-purple-500 rounded shadow-[0_0_8px_rgba(99,102,241,0.8)] animate-pulse uppercase tracking-widest">Beta</span>
         </span>
       </button>
+      <button id="tab-search" onclick="switchTab('search')" class="py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all">검색식 도출기</button>
     </div>
   </div>
 
@@ -406,6 +407,57 @@ textarea, input {
   <main id="tool-flowchart" class="flex-grow flex flex-col w-full hidden h-[calc(100vh-64px)]">
     <iframe src="https://patent-flowchart-generator-273913473477.asia-south1.run.app/" class="w-full h-full border-none"></iframe>
   </main>
+
+<main id="tool-search" class="max-w-7xl mx-auto px-4 py-8 w-full hidden animate-fadeIn flex-grow flex-col">
+    <div class="mb-8">
+      <h2 class="text-2xl font-bold text-slate-900 tracking-tight">특허 검색식 자동 도출기</h2>
+      <p class="text-slate-500 mt-1 text-sm">타겟 특허 문헌들을 업로드하면, 완벽한 1:1 매칭과 노이즈 차단 규칙이 적용된 최고 수준의 검색식을 생성합니다.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-grow">
+      <div class="lg:col-span-4 space-y-6 flex flex-col">
+        <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex-grow">
+          <h3 class="font-bold mb-4 text-slate-800 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            분석 대상 특허 문헌 (PDF/Word)
+          </h3>
+          <div id="dropzone-search" class="border-2 border-dashed border-slate-300 p-8 rounded-xl text-center cursor-pointer hover:bg-indigo-50 transition flex flex-col items-center justify-center gap-3" onclick="document.getElementById('searchFiles').click()">
+            <input type="file" id="searchFiles" multiple accept=".pdf,.doc,.docx" class="hidden" onchange="handleSearchFileSelect(event)">
+            <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <span class="text-sm font-bold text-slate-600">PDF, Word 파일 선택 또는 드래그</span>
+          </div>
+          <ul id="searchFileList" class="mt-4 text-sm overflow-y-auto max-h-[200px]"></ul>
+        </div>
+
+        <div class="flex flex-col space-y-3">
+          <select id="model-search" class="w-full px-4 py-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-sm">
+            <option value="gemini-3.1-pro-preview" selected>심화추론 모델 (권장)</option>
+            <option value="gemini-2.5-pro">일반 모델</option>
+          </select>
+          <button id="btn-run-search" onclick="runSearchQueryGeneration()" class="w-full py-4 rounded-xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 transition shadow-md flex justify-center items-center">
+            <span id="search-btn-text">검색식 도출 실행</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 flex flex-col">
+        <div id="search-empty-state" class="h-full min-h-[500px] flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-white text-slate-400 rounded-xl shadow-sm">
+          <svg class="w-16 h-16 mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <h4 class="text-lg font-bold">특허 문헌을 업로드하고 도출을 실행하세요</h4>
+        </div>
+        
+        <div id="search-results-container" class="hidden flex-col h-full bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-8 py-5 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center sticky top-0">
+            <h3 class="font-black text-indigo-900 flex items-center text-lg">💡 검색식 도출 결과</h3>
+            <span id="search-status-badge" class="text-xs font-bold text-indigo-600 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-sm animate-pulse">데이터 분석 중...</span>
+          </div>
+          <div class="p-8 flex-grow overflow-y-auto bg-[#f8fafc] min-h-[500px]">
+            <div id="search-stream-output" class="select-text text-sm text-slate-800 leading-loose whitespace-pre-wrap font-medium"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
   
 <script>
     // 💡 1. 전역 드래그 방지 (가장 강력한 브라우저 화면 낚아채기 차단)
@@ -704,7 +756,7 @@ textarea, input {
   
     // ================== 공통 탭 스위칭 ==================
     function switchTab(tab) { 
-      ['draft', 'ids', 'compare', 'oa', 'board','flowchart'].forEach(t => {
+      ['draft', 'ids', 'compare', 'oa', 'board', 'flowchart', 'search'].forEach(t => {
         const el = document.getElementById(`tool-${t}`);
         if (el) el.classList.toggle('hidden', tab !== t); 
         
@@ -1608,6 +1660,128 @@ textarea, input {
         btn.disabled = false; btn.innerText = "등록하기"; 
       }
     }
+
+let searchState = { files: [] };
+
+    window.removeSearchFile = function(index) {
+      searchState.files.splice(index, 1);
+      renderSearchFileList();
+    }
+
+    function renderSearchFileList() {
+      const listElement = document.getElementById('searchFileList');
+      if(!listElement) return;
+      listElement.innerHTML = searchState.files.map((f, i) => 
+        `<li class="flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-lg mt-2 text-sm shadow-sm animate-fadeIn">
+          <span class="truncate w-[85%] font-bold text-slate-700 flex items-center"><svg class="w-4 h-4 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> ${f.name}</span>
+          <button onclick="removeSearchFile(${i})" class="text-rose-400 hover:text-rose-600 font-black px-2 transition-colors">✕</button>
+        </li>`
+      ).join('');
+    }
+
+    window.handleSearchFileSelect = function(e, droppedFiles = null) {
+      const files = droppedFiles || (e.target && e.target.files ? Array.from(e.target.files) : []);
+      if (!files || files.length === 0) return;
+
+      const validFiles = files.filter(f => {
+        const ext = f.name.toLowerCase(); 
+        return ext.endsWith('.pdf') || ext.endsWith('.doc') || ext.endsWith('.docx');
+      });
+
+      if (validFiles.length > 0) {
+        searchState.files = [...searchState.files, ...validFiles];
+        renderSearchFileList();
+        
+        const dropZoneSpan = document.querySelector(`#dropzone-search span`);
+        if(dropZoneSpan) {
+            dropZoneSpan.innerHTML = `<span class="text-indigo-600 font-black">✅ ${validFiles.length}개의 파일이 추가되었습니다!</span>`;
+            setTimeout(() => { dropZoneSpan.innerText = "PDF, Word 파일 선택 또는 드래그"; }, 1500);
+        }
+      } else {
+        alert('지원하지 않는 파일 형식입니다. (PDF 또는 Word 파일만 가능)');
+      }
+      if (e && e.target) e.target.value = ''; 
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const dropZone = document.getElementById('dropzone-search');
+      if(dropZone) {
+        ['dragenter', 'dragover'].forEach(eName => {
+          dropZone.addEventListener(eName, (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('bg-indigo-50', 'border-indigo-400'); });
+        });
+        ['dragleave', 'drop'].forEach(eName => {
+          dropZone.addEventListener(eName, (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('bg-indigo-50', 'border-indigo-400'); });
+        });
+        dropZone.addEventListener('drop', (e) => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleSearchFileSelect(null, Array.from(e.dataTransfer.files));
+          }
+        });
+      }
+    });
+
+    window.runSearchQueryGeneration = async function() {
+      const btn = document.getElementById('btn-run-search'); 
+      const btnText = document.getElementById('search-btn-text'); 
+      
+      if (!searchState.files.length) return alert("분석할 특허 문헌(PDF/Word)을 하나 이상 첨부해주세요.");
+      
+      btn.disabled = true; 
+      btn.classList.add('opacity-50');
+      
+      document.getElementById('search-empty-state').classList.add('hidden');
+      document.getElementById('search-results-container').classList.remove('hidden');
+      
+      const outputDiv = document.getElementById('search-stream-output');
+      const statusBadge = document.getElementById('search-status-badge');
+      
+      outputDiv.innerHTML = '';
+      statusBadge.innerText = "파일 업로드 및 AI 분석 준비 중...";
+      statusBadge.classList.add('animate-pulse', 'text-indigo-600', 'bg-white');
+      statusBadge.classList.remove('text-emerald-700', 'bg-emerald-100', 'text-rose-700', 'bg-rose-100');
+
+      try {
+        const processFiles = async (files) => Promise.all(files.map(async f => ({ name: f.name, mimeType: f.type || 'application/pdf', base64: await fileToBase64(f) })));
+        
+        let isFirst = true;
+        let accText = "";
+        
+        const formatSearchText = (text) => text
+            .replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/\*\*(.*?)\*\*/g, `<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>`)
+            .replace(/```text([\s\S]*?)```/g, '<div class="relative mt-4 mb-6"><div class="absolute top-0 left-0 bg-slate-700 text-slate-300 text-[10px] font-black px-3 py-1 rounded-br-lg rounded-tl-xl uppercase tracking-widest">Query</div><pre class="bg-slate-800 text-emerald-400 p-6 pt-10 rounded-xl overflow-x-auto font-mono text-[15px] shadow-lg leading-relaxed whitespace-pre-wrap">$1</pre></div>')
+            .replace(/### (.*)/g, '<br><h3 class="text-[16px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl inline-block mt-4 mb-3 shadow-sm w-full">$1</h3>');
+
+        await streamFetchGemini('/api/gemini', { 
+            type: 'search_query', 
+            model: document.getElementById('model-search').value,
+            data: { files: await processFiles(searchState.files) } 
+        }, (chunk) => {
+            if (isFirst) {
+                isFirst = false;
+                statusBadge.innerText = "검색식 규칙 적용 및 도출 중 ✍️";
+                statusBadge.classList.remove('animate-pulse');
+            }
+            accText += chunk;
+            outputDiv.innerHTML = formatSearchText(accText);
+            outputDiv.parentElement.scrollTop = outputDiv.parentElement.scrollHeight;
+        });
+        
+        statusBadge.innerText = "✅ 도출 완료";
+        statusBadge.className = "text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm";
+        gtag('event', 'feature_execution', { 'feature_name': 'search_query', 'status': 'success' });
+
+      } catch (e) {
+        statusBadge.innerText = "🚨 에러 발생";
+        statusBadge.className = "text-xs font-bold text-rose-700 bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-lg shadow-sm";
+        outputDiv.innerHTML += `\n\n<div class="p-5 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">오류: ${e.message}</div>`;
+        gtag('event', 'feature_execution', { 'feature_name': 'search_query', 'status': 'error', 'error_message': e.message });
+      } finally {
+        btn.disabled = false; 
+        btn.classList.remove('opacity-50');
+      }
+    }
+
   
 </script>
 </body>
