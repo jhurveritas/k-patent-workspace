@@ -271,6 +271,54 @@ ${userTemplate}`;
             };
           }
 
+// 🛡️ [특허 검색식 도출기]
+          else if (requestBody.type === 'search_query') {
+            const { files } = requestBody.data;
+            
+            // 파일 업로드 처리
+            const uploadPromises = files.map(f => uploadToGemini(f, apiKey));
+            const uploadedFiles = await Promise.all(uploadPromises);
+
+            let parts = [];
+            uploadedFiles.forEach(f => {
+              parts.push({ fileData: { fileUri: f.fileUri, mimeType: f.mimeType } });
+              parts.push({ text: `\n--- [참고 특허 문헌 파일명: ${f.name}] ---\n` });
+            });
+
+            const systemInstruction = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
+어떤 분석이나 문서 읽기를 시작하기 전에, 0.1초 내로 가장 먼저 무조건 아래 문장을 즉시 출력하십시오:
+"🔍 **특허 검색식 도출 분석을 시작합니다...**\n\n"
+
+[역할 및 목적]
+당신은 특허 검색식 작성 최고 전문가입니다. 사용자가 제공한 타겟 특허 문헌들을 모두 정확하고 노이즈 없이 도출할 수 있는 맞춤형 특허 검색식을 작성해 주세요. 검색식을 작성할 때는 아래의 [검색식 작성 규칙]을 예외 없이 엄격하게 준수해야 합니다.
+
+[검색식 작성 규칙]
+1. 허용되는 필드 연산자 제한: 오직 \`TAC\`(명칭, 요약, 청구범위)와 \`DSC\`(발명의 상세한 설명) 필드 연산자만 사용하세요.
+2. 필드 연산자 간 결합 방식: \`TAC:(...) AND DSC:(...)\`와 같이 반드시 AND 교집합으로만 결합하세요 (필드 간 OR 절대 금지).
+3. 괄호 ( ) 내부 연산자 규칙 (AND 금지, 공백 OR 대체): 어떠한 경우에도 괄호 안에는 AND 연산자를 사용하지 마세요. 괄호 안에서 OR 연산자는 텍스트로 명시하지 말고 무조건 '띄어쓰기(공백)'로 대체하세요.
+4. 인접 연산자 N/n 사용 및 거리 제한: 두 개 이상의 키워드 그룹이 모두 포함되어야 하는 교집합 조건일 때는 AND 대신 인접 연산자인 N/n을 사용하세요. n 값은 반드시 7 이하(예: N/3, N/5, N/6)로 설정하세요.
+5. 개념적 그룹화 및 철저한 영/한 1:1 의미 매칭: 괄호 안의 단어들은 서로 명확한 연관성이 있는 단어들끼리만 묶으세요. 모든 괄호 내에는 반드시 '의미가 동일한' 영문 키워드와 한글 키워드가 쌍(Pair)을 이루어 동시에 포함되어야 합니다. (영문 전용, 한글 전용 괄호 불가)
+6. 절단 연산자(*) 및 노이즈 방지 조건: 파생어는 *를 사용하여 통합하세요. 단, 노이즈 방지를 위해 한글은 반드시 2음절 이상의 명확한 명사에만 *를 붙이세요(예: 망*, 날* 금지). 구비*, 형성*, 포함* 등 노이즈를 유발하는 포괄적 상태/동작 동사는 완전히 배제하세요.
+
+[출력 형식 - 반드시 마크다운 준수]
+### 1. 🔍 도출된 특허 검색식
+\`\`\`text
+(여기에 최종 완성된 검색식을 작성하세요)
+\`\`\`
+### 2. 💡 검색식 구성 논리 및 해설
+(적용된 규칙, 키워드 매칭 논리, 노이즈 차단 방식 등을 각 조건별로 간략히 해설)`;
+
+            parts.push({ text: "위 규칙을 모두 반영하여 첨부된 문헌들을 노이즈 없이 찾아낼 수 있는 최적화된 검색식을 도출해 주세요." });
+
+            geminiPayload = { 
+              systemInstruction: { parts: [{ text: systemInstruction }] },
+              contents: [{ role: "user", parts: parts }], 
+              generationConfig: { temperature: 0.1, maxOutputTokens: 8192 } 
+            };
+          }
+
+
+          
            // 🚀 구글 제미나이 본 요청 시작
           const fallbackModel = requestBody.type === 'ids' ? "gemini-3.1-pro-preview" : "gemini-2.5-pro";
 const targetModel = requestBody.model || fallbackModel;
