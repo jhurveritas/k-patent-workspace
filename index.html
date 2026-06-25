@@ -433,7 +433,22 @@ textarea, input {
           </div>
           <ul id="searchFileList" class="mt-4 text-sm overflow-y-auto max-h-[200px]"></ul>
         </div>
-
+        
+        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+          <h3 class="font-bold mb-3 text-slate-800 text-sm flex items-center">
+            <svg class="w-4 h-4 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+            사용할 필드 연산자 선택
+          </h3>
+          <div class="grid grid-cols-2 gap-3 mt-2">
+            <label class="flex items-center space-x-2 text-xs font-bold text-slate-600 cursor-pointer"><input type="checkbox" name="search-fields" value="TAC" checked class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"><span>TAC (명칭/요약/청구범위)</span></label>
+            <label class="flex items-center space-x-2 text-xs font-bold text-slate-600 cursor-pointer"><input type="checkbox" name="search-fields" value="DSC" checked class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"><span>DSC (상세한 설명)</span></label>
+            <label class="flex items-center space-x-2 text-xs font-bold text-slate-600 cursor-pointer"><input type="checkbox" name="search-fields" value="CLA" class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"><span>CLA (전체 청구항)</span></label>
+            <label class="flex items-center space-x-2 text-xs font-bold text-slate-600 cursor-pointer"><input type="checkbox" name="search-fields" value="AP" class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"><span>AP (출원인)</span></label>
+            <label class="flex items-center space-x-2 text-xs font-bold text-slate-600 cursor-pointer"><input type="checkbox" name="search-fields" value="AD" class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"><span>AD (출원일)</span></label>
+            <label class="flex items-center space-x-2 text-xs font-bold text-slate-600 cursor-pointer"><input type="checkbox" name="search-fields" value="IPC" class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"><span>IPC (국제특허분류)</span></label>
+          </div>
+        </div>
+  
         <div class="flex flex-col space-y-3">
           <select id="model-search" class="w-full px-4 py-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-sm">
             <option value="gemini-3.1-pro-preview" >심화추론 모델</option>
@@ -1730,6 +1745,10 @@ let searchState = { files: [] };
       const btnText = document.getElementById('search-btn-text'); 
       
       if (!searchState.files.length) return alert("분석할 특허 문헌(PDF/Word)을 하나 이상 첨부해주세요.");
+
+const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:checked');
+      if (selectedFieldEls.length === 0) return alert("검색식에 사용할 필드 연산자를 최소 하나 이상 선택해주세요.");
+      const selectedFields = Array.from(selectedFieldEls).map(cb => cb.value);
       
       btn.disabled = true; 
       btn.classList.add('opacity-50');
@@ -1760,7 +1779,7 @@ let searchState = { files: [] };
         await streamFetchGemini('/api/gemini', { 
             type: 'search_query', 
             model: document.getElementById('model-search').value,
-            data: { files: await processFiles(searchState.files) } 
+            data: { files: await processFiles(searchState.files), selectedFields: selectedFields } 
         }, (chunk) => {
             if (isFirst) {
                 isFirst = false;
