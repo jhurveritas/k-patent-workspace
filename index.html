@@ -1770,23 +1770,29 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         let isFirst = true;
         let accText = "";
         
-        const formatSearchText = (text) => text
-    .replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/\*\*(.*?)\*\*/g, `<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>`)
-    .replace(/```text([\s\S]*?)```/g, function(match, p1) {
-        return `<div class="relative mt-10 mb-6 group">
-            <button onclick="copyQueryText(this)" class="absolute -top-9 right-0 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center shadow-sm z-10">
-                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                복사
-            </button>
-            
-            <div class="bg-slate-800 rounded-xl shadow-md border border-slate-700 w-fit max-w-full overflow-hidden inline-block">
-                <pre class="query-content text-emerald-400 p-5 font-mono text-[14px] leading-relaxed whitespace-pre-wrap break-all">${p1.trim()}</pre>
-            </div>
-        </div>`;
-    })
-    .replace(/### (.*)/g, '<br><h3 class="text-[16px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl inline-block mt-4 mb-3 shadow-sm w-full">$1</h3>');
+        const formatSearchText = (text) => {
+            // 1. 기본 텍스트 및 마크다운(볼드체, 헤딩) 처리
+            let formatted = text
+                .replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/\*\*(.*?)\*\*/g, `<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>`)
+                .replace(/### (.*)/g, '<br><h3 class="text-[16px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl inline-block mt-4 mb-3 shadow-sm w-full">$1</h3>');
 
+            // 2. 스트리밍 친화적 코드블록 렌더링 (열림 기호와 닫힘 기호를 분리해서 치환)
+            // '```text'가 들어오는 즉시 검은색 UI 박스와 복사 버튼을 화면에 먼저 그립니다.
+            formatted = formatted.replace(/```text\n?/g, `<div class="relative mt-10 mb-6 group">
+                <button onclick="copyQueryText(this)" class="absolute -top-9 right-0 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center shadow-sm z-10">
+                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    복사
+                </button>
+                
+                <div class="bg-slate-800 rounded-xl shadow-md border border-slate-700 w-fit max-w-full overflow-hidden inline-block">
+                    <pre class="query-content text-emerald-400 p-5 font-mono text-[14px] leading-relaxed whitespace-pre-wrap break-all">`);
+            
+            // 통신이 끝나고 '```' 닫힘 기호가 오면 태그들을 닫아줍니다. (통신 중에는 열려있는 상태로 타이핑됨)
+            formatted = formatted.replace(/```/g, `</pre></div></div>`);
+
+            return formatted;
+        };
         await streamFetchGemini('/api/gemini', { 
             type: 'search_query', 
             model: document.getElementById('model-search').value,
