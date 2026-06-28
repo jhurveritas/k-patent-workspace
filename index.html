@@ -1775,27 +1775,27 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
                 .replace(/</g, "&lt;").replace(/>/g, "&gt;")
                 .replace(/\*\*(.*?)\*\*/g, `<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>`);
 
-            // 1. "제목(###)"과 "코드블록(```text)"이 연속으로 오는 경우 (완벽한 단일 카드 결합)
+            // 1. "제목(###)"과 "코드블록(```text)" 결합부 (텍스트 수직 중앙 정렬 적용)
             formatted = formatted.replace(/### (.*?)\n+```text\n?/g, function(match, title) {
-                return `<div class="mt-6 mb-6 query-group w-fit max-w-full flex flex-col">
-                    <div class="flex items-center justify-between gap-10 bg-slate-50 border border-slate-200 border-b-0 px-5 py-3 rounded-t-2xl w-full">
+                return `<div class="mt-6 mb-6 query-group w-full flex flex-col">
+                    <div class="flex items-center justify-between gap-10 bg-slate-50 border border-slate-200 border-b-0 px-5 py-3.5 rounded-t-2xl w-full">
                         <h3 class="text-[15px] font-black text-slate-900 m-0">${title.trim()}</h3>
                         <button onclick="copyQueryText(this)" class="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center shadow-sm whitespace-nowrap">
                             <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                             복사
                         </button>
                     </div>
-                    <div class="bg-slate-800 rounded-b-2xl shadow-sm border border-slate-700 w-full overflow-hidden">
-                        <pre class="query-content text-emerald-400 p-5 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap break-all">`;
+                    <div class="bg-slate-800 rounded-b-2xl shadow-sm border border-slate-700 w-full overflow-hidden flex items-center min-h-[120px]">
+                        <pre class="query-content text-emerald-400 p-6 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap break-all w-full m-0">${match.endsWith('\n') ? '' : ''}`;
             });
 
-            // 2. 코드블록만 단독으로 오는 경우의 폴백 (비상용)
-            formatted = formatted.replace(/```text\n?/g, `<div class="mt-4 mb-6 query-group w-fit max-w-full flex flex-col">
+            // 2. 코드블록만 단독으로 오는 경우의 폴백 (수직 중앙 정렬 적용)
+            formatted = formatted.replace(/```text\n?/g, `<div class="mt-4 mb-6 query-group w-full flex flex-col">
                 <div class="flex justify-end bg-slate-50 border border-slate-200 border-b-0 px-3 py-2 rounded-t-2xl w-full">
                     <button onclick="copyQueryText(this)" class="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center shadow-sm">복사</button>
                 </div>
-                <div class="bg-slate-800 rounded-b-2xl shadow-sm border border-slate-700 w-full overflow-hidden">
-                    <pre class="query-content text-emerald-400 p-5 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap break-all">`);
+                <div class="bg-slate-800 rounded-b-2xl shadow-sm border border-slate-700 w-full overflow-hidden flex items-center min-h-[120px]">
+                    <pre class="query-content text-emerald-400 p-6 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap break-all w-full m-0">`);
 
             // 3. 코드블록 닫기
             formatted = formatted.replace(/```/g, `</pre></div></div>`);
