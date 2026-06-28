@@ -1771,26 +1771,37 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         let accText = "";
         
         const formatSearchText = (text) => {
-            // 1. 기본 텍스트 및 마크다운(볼드체, 헤딩) 처리
             let formatted = text
                 .replace(/</g, "&lt;").replace(/>/g, "&gt;")
-                .replace(/\*\*(.*?)\*\*/g, `<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>`)
-                .replace(/### (.*)/g, '<br><h3 class="text-[16px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl inline-block mt-4 mb-3 shadow-sm w-full">$1</h3>');
+                .replace(/\*\*(.*?)\*\*/g, `<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>`);
 
-            // 2. 스트리밍 친화적 코드블록 렌더링 (열림 기호와 닫힘 기호를 분리해서 치환)
-            // '```text'가 들어오는 즉시 검은색 UI 박스와 복사 버튼을 화면에 먼저 그립니다.
-            // 2. 스트리밍 친화적 코드블록 렌더링 (열림 기호와 닫힘 기호를 분리해서 치환)
-            formatted = formatted.replace(/```text\n?/g, `<div class="relative mt-4 mb-6 group">
-                <button onclick="copyQueryText(this)" class="absolute -top-7 right-0 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors flex items-center shadow-sm z-10">
-                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    복사
-                </button>
-                
-                <div class="bg-slate-800 rounded-xl shadow-md border border-slate-700 w-fit max-w-full overflow-hidden inline-block">
-                    <pre class="query-content text-emerald-400 p-4 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-all">`);
-            
-            // 통신이 끝나고 '```' 닫힘 기호가 오면 태그들을 닫아줍니다. (통신 중에는 열려있는 상태로 타이핑됨)
+            // 1. "제목(###)"과 "코드블록(```text)"이 연속으로 오는 경우 (완벽한 단일 카드 결합)
+            formatted = formatted.replace(/### (.*?)\n+```text\n?/g, function(match, title) {
+                return `<div class="mt-6 mb-6 query-group w-fit max-w-full flex flex-col">
+                    <div class="flex items-center justify-between gap-10 bg-slate-50 border border-slate-200 border-b-0 px-5 py-3 rounded-t-2xl w-full">
+                        <h3 class="text-[15px] font-black text-slate-900 m-0">${title.trim()}</h3>
+                        <button onclick="copyQueryText(this)" class="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center shadow-sm whitespace-nowrap">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            복사
+                        </button>
+                    </div>
+                    <div class="bg-slate-800 rounded-b-2xl shadow-sm border border-slate-700 w-full overflow-hidden">
+                        <pre class="query-content text-emerald-400 p-5 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap break-all">`;
+            });
+
+            // 2. 코드블록만 단독으로 오는 경우의 폴백 (비상용)
+            formatted = formatted.replace(/```text\n?/g, `<div class="mt-4 mb-6 query-group w-fit max-w-full flex flex-col">
+                <div class="flex justify-end bg-slate-50 border border-slate-200 border-b-0 px-3 py-2 rounded-t-2xl w-full">
+                    <button onclick="copyQueryText(this)" class="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center shadow-sm">복사</button>
+                </div>
+                <div class="bg-slate-800 rounded-b-2xl shadow-sm border border-slate-700 w-full overflow-hidden">
+                    <pre class="query-content text-emerald-400 p-5 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap break-all">`);
+
+            // 3. 코드블록 닫기
             formatted = formatted.replace(/```/g, `</pre></div></div>`);
+
+            // 4. 일반 마크다운 제목 (검색식 이외의 항목인 4번, 5번 등)
+            formatted = formatted.replace(/### (.*)/g, '<br><h3 class="text-[16px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl inline-block mt-4 mb-2 shadow-sm w-full">$1</h3>');
 
             return formatted;
         };
@@ -1825,23 +1836,24 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
     }
 // 💡 검색식 복사하기 버튼 클릭 시 실행되는 전역 함수
     window.copyQueryText = function(btn) {
-        // 버튼이 속한 div 내에서 검색식이 담긴 pre 태그를 찾습니다.
-        const preElement = btn.parentElement.querySelector('pre.query-content');
+        // 복사 버튼이 포함된 전체 그룹 컨테이너(.query-group)를 먼저 찾고, 그 안에서 pre 태그를 찾습니다.
+        const container = btn.closest('.query-group');
+        const preElement = container ? container.querySelector('pre.query-content') : null;
         
         if (preElement) {
             // 클립보드에 텍스트 복사
             navigator.clipboard.writeText(preElement.innerText).then(() => {
-                // 복사 성공 시 시각적 피드백 (버튼 색상 변경 및 텍스트 변경)
+                // 복사 성공 시 시각적 피드백
                 const originalHTML = btn.innerHTML;
                 btn.innerHTML = '✅ 복사됨!';
                 btn.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
-                btn.classList.remove('bg-white', 'text-slate-600', 'hover:bg-slate-50', 'border-slate-200');
+                btn.classList.remove('bg-white', 'text-slate-600', 'hover:bg-slate-100', 'border-slate-200');
                 
                 // 2초 뒤에 원래 버튼 상태로 원복
                 setTimeout(() => {
                     btn.innerHTML = originalHTML;
                     btn.classList.remove('bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
-                    btn.classList.add('bg-white', 'text-slate-600', 'hover:bg-slate-50', 'border-slate-200');
+                    btn.classList.add('bg-white', 'text-slate-600', 'hover:bg-slate-100', 'border-slate-200');
                 }, 2000);
             }).catch(err => {
                 console.error('복사 실패:', err);
