@@ -764,12 +764,13 @@ textarea, input {
 
       // 3. 우리가 약속한 'GA_EVENT' 타입인지 확인
       if (messageData && messageData.type === 'GA_EVENT') {
-        gtag('event', 'feature_execution', { 
-          'feature_name': messageData.feature, // 'flowchart'
-          'action_type': messageData.action,   // 'export_svg'
-          'status': 'success', 
-          'error_message': 'none' 
-        });
+       gtag('event', 'feature_execution', { 
+    'feature_name': messageData.feature,
+    'action_type': messageData.action,
+    'model_name': messageData.model || 'unknown_model', // Iframe 통신에서 모델명을 받아오도록 추가
+    'status': 'success', 
+    'error_message': 'none' 
+  });
         console.log(`📊 [GA 수신 성공] 기능: ${messageData.feature} - 행동: ${messageData.action}`);
       }
     });
@@ -1822,13 +1823,21 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         
         statusBadge.innerText = "✅ 도출 완료";
         statusBadge.className = "text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm";
-        gtag('event', 'feature_execution', { 'feature_name': 'search_query', 'status': 'success' });
+        gtag('event', 'feature_execution', { 'feature_name': 'search_query', 
+    'model_name': document.getElementById('model-search').value, // 추가!
+    'status': 'success' 
+});
 
       } catch (e) {
         statusBadge.innerText = "🚨 에러 발생";
         statusBadge.className = "text-xs font-bold text-rose-700 bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-lg shadow-sm";
         outputDiv.innerHTML += `\n\n<div class="p-5 mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold">오류: ${e.message}</div>`;
-        gtag('event', 'feature_execution', { 'feature_name': 'search_query', 'status': 'error', 'error_message': e.message });
+        gtag('event', 'feature_execution', { 
+    'feature_name': 'search_query', 
+    'model_name': document.getElementById('model-search').value, // 추가!
+    'status': 'error', 
+    'error_message': e.message 
+});
       } finally {
         btn.disabled = false; 
         btn.classList.remove('opacity-50');
