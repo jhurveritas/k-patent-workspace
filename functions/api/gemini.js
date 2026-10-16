@@ -25,31 +25,31 @@ export async function onRequest(context) {
   }
 
   // 🔥 수정된 구글 File API 고속 업로드 헬퍼 함수
-async function uploadToGemini(fileData, apiKey) {
-  // 1. 무거운 for 루프 대신 Cloudflare 내부 엔진을 활용하여 CPU 소모 없이 Blob으로 변환
-  const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`;
-  const fileResponse = await fetch(dataUrl);
-  const blob = await fileResponse.blob();
-  
-  // 2. 바이너리 업로드를 위한 필수 파라미터(uploadType=media) 추가
-  const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=media&key=${apiKey}`;
-  
-  const res = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': fileData.mimeType 
-    },
-    body: blob // 변환된 Blob을 그대로 전송
-  });
-  
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`File API 업로드 실패: ${errText}`);
+  async function uploadToGemini(fileData, apiKey) {
+    // 1. 무거운 for 루프 대신 Cloudflare 내부 엔진을 활용하여 CPU 소모 없이 Blob으로 변환
+    const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`;
+    const fileResponse = await fetch(dataUrl);
+    const blob = await fileResponse.blob();
+    
+    // 2. 바이너리 업로드를 위한 필수 파라미터(uploadType=media) 추가
+    const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=media&key=${apiKey}`;
+    
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': fileData.mimeType 
+      },
+      body: blob // 변환된 Blob을 그대로 전송
+    });
+    
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`File API 업로드 실패: ${errText}`);
+    }
+    
+    const data = await res.json();
+    return { fileUri: data.file.uri, mimeType: fileData.mimeType, name: fileData.name };
   }
-  
-  const data = await res.json();
-  return { fileUri: data.file.uri, mimeType: fileData.mimeType, name: fileData.name };
-}
 
   try {
     const apiKey = context.env.GEMINI_API_KEY;
@@ -139,11 +139,11 @@ async function uploadToGemini(fileData, apiKey) {
             };
           }
           
-         // 🛡️ [의견서 생성기]
-else if (requestBody.type === 'draft') {
-  const { originalContext, amendmentContext, userDraftResponse, userTemplate } = requestBody.data;
-  
-  const secretPrompt = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
+          // 🛡️ [의견서 생성기]
+          else if (requestBody.type === 'draft') {
+            const { originalContext, amendmentContext, userDraftResponse, userTemplate } = requestBody.data;
+            
+            const secretPrompt = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
 어떤 분석이나 문서 작성을 시작하기 전에, 0.1초 내로 가장 먼저 무조건 아래 문장을 즉시 출력하십시오:
 "✍️ 제공된 문헌을 바탕으로 의견서 초안 작성을 시작합니다...\n\n"
 
@@ -177,8 +177,8 @@ ${userDraftResponse}
 [작성 템플릿]
 ${userTemplate}`;
 
-  geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }] };
-}
+            geminiPayload = { contents: [{ role: "user", parts: [{ text: secretPrompt }] }] };
+          }
 
           // 🛡️ [IDS 판별기]
           else if (requestBody.type === 'ids') {
@@ -251,7 +251,7 @@ ${userTemplate}`;
 각 항목별로 문제점과 제안을 작성하고, 문제가 없으면 "✅ 특이사항 없음" 기재.
 ### 1. ⚠️ 누락된 대응 논리
 ### 2. 🚨 청구항-논리 불일치
-### 3. 📝 기재불비 및 신규사항 추가`; //
+### 3. 📝 기재불비 및 신규사항 추가`;
 
             let parts = [
               { text: `[분석 자료]\n- 대상 국가: ${targetCountry}\n- 최초명세서: ${cleanSpec}\n- 계류중 청구항: ${cleanPending}\n- 보정 후 청구항: ${cleanAmended}\n- 대응 논리: ${userDraftResponse}` }
@@ -266,12 +266,11 @@ ${userTemplate}`;
             geminiPayload = { 
               systemInstruction: { parts: [{ text: systemInstruction }] },
               contents: [{ role: "user", parts: parts }], 
-              // 🚨 JSON 설정 제거! 일반 텍스트 스트리밍으로 전송
               generationConfig: { temperature: 0.2, maxOutputTokens: 8192 } 
             };
           }
 
-// 🛡️ [특허 검색식 도출기]
+          // 🛡️ [특허 검색식 도출기]
           else if (requestBody.type === 'search_query') {
             const { files, selectedFields } = requestBody.data;
             
@@ -334,11 +333,163 @@ ${userTemplate}`;
               generationConfig: { temperature: 0.1, maxOutputTokens: 8192 } 
             };
           }
+
+          // 🛡️ [신규: 국가별 OA 대응안 생성기]
+          else if (requestBody.type === 'oa_generate') {
+            const {
+              targetCountry,
+              originalSpecificationFile,
+              originalSpecificationImages,
+              originalSpecificationText,
+              officeAction,
+              pendingClaims,
+              priorArtFiles,
+              userTemplate,
+              strategy,
+              userNotes
+            } = requestBody.data;
+
+            const strategyMap = {
+              'balanced': '종합 추천 (독립항 최소 한정 보정안 도출 + 무보정 의견서 반박 논리 병행)',
+              'argument_only': '무보정 의견서 반박 최우선 (청구항 권리범위 유지를 위해 보정을 지양하고, 심사관의 인용문헌 해석/결합 오류 및 도면상 구조적 차이를 집중 타격)',
+              'amendment_focus': '조기 등록을 위한 적극적 보정안 도출 (종속항 병합 또는 최초명세서 실시예/도면의 구체적 구성을 독립항에 한정하여 선행문헌과 명확히 차별화)'
+            };
+            const strategyDesc = strategyMap[strategy] || strategyMap['balanced'];
+
+            const countryRuleMap = {
+              'KR': '대한민국(KIPO): 특허법 제47조제2항(신규사항 추가 금지 - 최초 명세서 또는 도면에 기재된 사항의 범위 내 보정), 제29조제1항/제2항(신규성/진보성 - 구성의 곤란성 및 효과의 현저성 중심), 제42조제4항(기재불비) 기준을 적용할 것.',
+              'US': '미국(USPTO): 35 U.S.C. 112(a)(Written Description - 명세서 및 도면 뒷받침), 35 U.S.C. 102/103(KSR 판례 및 MPEP 2141/2143에 따른 Teaching Away, 결합 동기 결여, 부당한 사후적 고찰(Impermissible Hindsight) 반박), 35 U.S.C. 112(b)(Indefiniteness) 기준을 적용할 것.',
+              'EP': '유럽(EPO): Art. 123(2) EPC(초엄격 신규사항 판단 - Gold Standard: 명세서로부터 직접적이고 일의적으로(directly and unambiguously) 도출되는 구성만 보정 허용, 중간일반화(Intermediate generalisation) 절대 주의) 및 Art. 56 EPC(Problem-Solution Approach: 가장 가까운 선행기술(CPA) 선정 ➔ 차이점 도출 ➔ 객관적 기술적 과제 설정 ➔ 자명성 반박) 기준을 엄격히 적용할 것.',
+              'JP': '일본(JPO): 특허법 제17조의2제3항(신규사항 추가 금지), 제29조제2항(인용발명의 기술적 사상 및 저해요인(阻害要因) 중심 반박), 제36조제6항(기재요건) 기준을 적용할 것.',
+              'CN': '중국(CNIPA): 특허법 제33조(초엄격 신규사항 판단 - 문자 그대로 기재되거나 직접적·의심의 여지 없이 결정되는 내용만 보정 허용), 제22조제3항(진보성 3단계 판단법: 가장 가까운 선행기술 확정 ➔ 구별되는 기술적 특징 및 실제로 해결하는 기술적 문제 확정 ➔ 기술적 시사(Technical Enlightenment) 유무 판단) 기준을 적용할 것.'
+            };
+            const countryRule = countryRuleMap[targetCountry] || `${targetCountry} 특허법 및 심사기준을 엄격히 적용할 것.`;
+
+            const systemInstruction = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
+어떤 분석이나 문서 읽기를 시작하기 전에, 0.1초 내로 가장 먼저 무조건 아래 문장을 즉시 출력하십시오:
+"✨ **${targetCountry} 기준 맞춤형 OA 대응안(보정안 및 반박 논리) 도출을 시작합니다...**\n\n"
+
+[당신의 역할 및 목표]
+당신은 ${targetCountry} 특허 실무에 정통한 최고 수준의 시니어 변리사입니다.
+제공된 [거절이유 통지서], [본원 최초명세서 및 도면], [현재 계류중인 청구항], 그리고 [인용참증(선행문헌)]을 종합적으로 정밀 분석하여, 심사관의 거절이유를 완벽하게 극복할 수 있는 실전 'OA 대응안(검토보고서 및 보정/의견 전략)'을 작성하십시오.
+
+[핵심 분석 및 작성 지침]
+1. 국가별 심사기준 엄수:
+   - ${countryRule}
+2. 도면 및 명세서 정밀 활용 (매우 중요):
+   - 본원 명세서의 상세한 설명뿐만 아니라 **도면(도면 부호, 부재 간의 결합 관계, 형상, 배치, 신호 흐름 등)**과 선행문헌의 도면/구성을 시각적·기술적으로 비교하십시오.
+   - 청구항 보정안을 제안할 때는 반드시 **본원 최초명세서의 어느 단락(예: 단락 [0035]) 또는 몇 번 도면(예: 도 3)에 보정 근거(Support)가 있는지 명확히 기재**하여 신규사항 추가(New Matter) 리스크를 원천 차단하십시오.
+3. 대응 방향성(전략) 준수:
+   - 선택된 전략: [${strategyDesc}]
+   - 사용자의 추가 지시사항("${userNotes || '별도 지시사항 없음'}")이 있다면 최우선으로 반영하십시오.
+4. 워드 양식(Template) 구조 준수:
+   ${userTemplate ? `- 사용자가 업로드한 [대응안 워드 양식]이 존재합니다. 반드시 아래 제공된 [대응안 워드 양식]의 목차, 표제어, 문체, 서식 흐름을 그대로 유지하여 내용을 채워 넣으십시오.` : `- 별도의 양식이 첨부되지 않았으므로 아래 [기본 출력 목차]에 따라 체계적인 마크다운(### 제목 및 **강조** 활용)으로 작성하십시오.
+   ### 1. 📋 거절이유 요약 및 인용문헌 현황
+   ### 2. 🔍 본원발명과 인용발명(D1, D2 등)의 핵심 구성 및 도면 대비 분석
+   ### 3. ✂️ 추천 청구항 보정안 및 명세서/도면 내 보정 근거 (신규사항 추가 검토 포함)
+   ### 4. 🛡️ 거절이유 극복을 위한 핵심 반박 논리 (의견서 전개용 상세 논리)
+   ### 5. 💡 실무자 종합 의견 및 후속 절차 가이드`}`;
+
+            let parts = [];
+
+            const uploadTasks = [];
+
+            if (officeAction && officeAction.base64) {
+              uploadTasks.push(
+                uploadToGemini(officeAction, apiKey).then(res => ({ roleType: 'oa', ...res }))
+              );
+            }
+
+            if (originalSpecificationFile && originalSpecificationFile.base64 && originalSpecificationFile.mimeType === 'application/pdf') {
+              uploadTasks.push(
+                uploadToGemini(originalSpecificationFile, apiKey).then(res => ({ roleType: 'spec_pdf', ...res }))
+              );
+            }
+
+            if (Array.isArray(originalSpecificationImages) && originalSpecificationImages.length > 0) {
+              originalSpecificationImages.slice(0, 15).forEach(img => {
+                uploadTasks.push(
+                  uploadToGemini(img, apiKey).then(res => ({ roleType: 'spec_img', ...res }))
+                );
+              });
+            }
+
+            if (Array.isArray(priorArtFiles) && priorArtFiles.length > 0) {
+              priorArtFiles.forEach((pf, idx) => {
+                if (pf && pf.base64) {
+                  uploadTasks.push(
+                    uploadToGemini(pf, apiKey).then(res => ({ roleType: 'prior_art', index: idx + 1, ...res }))
+                  );
+                }
+              });
+            }
+
+            const uploadedAssets = await Promise.all(uploadTasks);
+
+            uploadedAssets.filter(a => a.roleType === 'oa').forEach(a => {
+              parts.push({ text: `\n--- [거절이유 통지서(OA) 원문 파일: ${a.name}] 시작 ---\n` });
+              parts.push({ fileData: { fileUri: a.fileUri, mimeType: a.mimeType } });
+              parts.push({ text: `\n--- [거절이유 통지서(OA) 원문 파일] 끝 ---\n` });
+            });
+
+            uploadedAssets.filter(a => a.roleType === 'spec_pdf').forEach(a => {
+              parts.push({ text: `\n--- [본원 최초명세서 및 도면 원본(PDF): ${a.name}] 시작 ---\n` });
+              parts.push({ fileData: { fileUri: a.fileUri, mimeType: a.mimeType } });
+              parts.push({ text: `\n--- [본원 최초명세서 및 도면 원본(PDF)] 끝 ---\n` });
+            });
+
+            const specImgs = uploadedAssets.filter(a => a.roleType === 'spec_img');
+            if (specImgs.length > 0) {
+              parts.push({ text: `\n--- [본원 최초명세서 내 첨부 도면 이미지 (${specImgs.length}개)] 시작 ---\n` });
+              specImgs.forEach(img => {
+                parts.push({ fileData: { fileUri: img.fileUri, mimeType: img.mimeType } });
+              });
+              parts.push({ text: `\n--- [본원 최초명세서 내 첨부 도면 이미지] 끝 ---\n` });
+            }
+
+            uploadedAssets.filter(a => a.roleType === 'prior_art').forEach(a => {
+              parts.push({ text: `\n--- [인용문헌/선행문헌 D${a.index} 파일: ${a.name}] 시작 ---\n` });
+              parts.push({ fileData: { fileUri: a.fileUri, mimeType: a.mimeType } });
+              parts.push({ text: `\n--- [인용문헌/선행문헌 D${a.index}] 끝 ---\n` });
+            });
+
+            const cleanSpecText = originalSpecificationText
+              ? originalSpecificationText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+              : '';
+            const cleanPendingClaims = pendingClaims
+              ? pendingClaims.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+              : '';
+
+            let userPrompt = `[OA 대응안 생성 요청 자료]
+- 대상 국가: ${targetCountry}
+- 희망 대응 방향: ${strategyDesc}
+- 사용자 추가 지시사항: ${userNotes || '없음'}
+
+[현재 계류중인 청구항 (심사 대상 청구항)]
+${cleanPendingClaims}
+`;
+
+            if (cleanSpecText) {
+              userPrompt += `\n[본원 최초명세서 텍스트 (보정 근거 탐색용)]\n${cleanSpecText}\n`;
+            }
+
+            if (userTemplate && userTemplate.trim()) {
+              userPrompt += `\n[사용자가 지정한 대응안 워드 양식 (이 양식의 목차와 서식 구조를 엄격히 따를 것)]\n${userTemplate.trim()}\n`;
+            }
+
+            parts.push({ text: userPrompt });
+
+            geminiPayload = {
+              systemInstruction: { parts: [{ text: systemInstruction }] },
+              contents: [{ role: "user", parts: parts }],
+              generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
+            };
+          }
           
-           // 🚀 구글 제미나이 본 요청 시작
+          // 🚀 구글 제미나이 본 요청 시작
           const fallbackModel = requestBody.type === 'ids' ? "gemini-3.1-pro-preview" : "gemini-2.5-pro";
-const targetModel = requestBody.model || fallbackModel;
-const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
+          const targetModel = requestBody.model || fallbackModel;
+          const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
           let googleResponse;
           const maxRetries = 2; // 최대 2번 더 재시도 (총 3번 호출)
           
