@@ -975,6 +975,12 @@ textarea, input {
         
         const btn = document.getElementById(`tab-${t}`);
         if (btn) {
+          if (t === 'oagen') {
+            // 💡 비공개 스텔스 탭(oagen) 전용: 선택됐을 때만 보이고, 다른 탭을 누르면 다시 투명(opacity-0) 유지!
+            btn.className = tab === 'oagen' 
+              ? "py-4 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition-all" 
+              : "py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 opacity-0 hover:opacity-100 transition-opacity duration-300";
+          } else {
           btn.className = tab === t ? "py-4 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 transition-all" : "py-4 text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all";
         }
       });
@@ -2062,7 +2068,359 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
             });
         }
     };
-  
+
+// ================== [신규] 국가별 OA 대응안 생성기 (OAGen) 로직 ==================
+    let oaGenState = {
+      country: null,
+      officeActionFile: null,
+      priorArtFiles: [],
+      lastResultText: ""
+    };
+    let oaGenStep = 0;
+
+    // 초기 인디케이터 및 드래그앤드롭 세팅
+    window.addEventListener('DOMContentLoaded', () => {
+      updateInd('oagen', 0);
+      setupOAGenDragAndDrop();
+    });
+
+    function goToOAGenStep(step) {
+      if (step === 1) {
+        if (!oaGenState.country || !document.getElementById('oagen-original-spec').value.trim() || !document.getElementById('oagen-pending-claims').value.trim() || !oaGenState.officeActionFile) {
+          const errBox = document.getElementById('oagen-error-box-1');
+          errBox.innerText = "⚠️ 대상 국가 선택, 최초명세서, 현재 청구항, 거절이유 통지서 첨부는 필수입니다.";
+          errBox.classList.remove('hidden');
+          return;
+        }
+        document.getElementById('oagen-error-box-1').classList.add('hidden');
+      }
+
+      oaGenStep = step;
+      updateInd('oagen', step);
+      [0, 1, 2].forEach(i => {
+        const el = document.getElementById(`oagen-step-${i + 1}`);
+        if (el) {
+          el.classList.toggle('hidden', i !== oaGenStep);
+          el.classList.toggle('flex', i === oaGenStep);
+        }
+      });
+    }
+
+    function setOAGenCountry(code) {
+      oaGenState.country = code;
+      const btns = document.querySelectorAll('.oagen-btn');
+      const codeMap = { 'KR': 'KIPO', 'US': 'USPTO', 'EP': 'EPO', 'JP': 'JPO', 'CN': 'CNIPA' };
+      btns.forEach(btn => {
+        if (btn.innerText.includes(codeMap[code])) {
+          btn.className = "oagen-btn px-5 py-2.5 rounded-xl text-sm font-bold border bg-indigo-600 text-white border-indigo-600 shadow-md";
+        } else {
+          btn.className = "oagen-btn px-5 py-2.5 rounded-xl text-sm font-bold border bg-white text-gray-600 border-gray-200";
+        }
+      });
+      const lbl = code === 'KR' ? '국문' : '영문/현지어';
+      document.getElementById('oagen-label-spec').innerText = `최초명세서 초안(${lbl})`;
+      document.getElementById('oagen-label-pending').innerText = `현재 계류중인 청구항(${lbl})`;
+      checkOAGenStep1();
+    }
+
+    function checkOAGenStep1() {
+      document.getElementById('oagen-error-box-1').classList.add('hidden');
+    }
+
+    // 최초명세서 Word/HLZ 추출 함수
+    async function extractTextForOAGenSpec(e) {
+      const file = (e.dataTransfer && e.dataTransfer.files[0]) || (e.target && e.target.files[0]);
+      if (!file) return;
+
+      const textarea = document.getElementById('oagen-original-spec');
+      const ext = file.name.split('.').pop().toLowerCase();
+      textarea.disabled = true;
+
+      try {
+        if (ext === 'docx') {
+          textarea.value = "⏳ Word 파일 텍스트 추출 중...";
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+          textarea.value = result.value.trim() || "문서에 텍스트가 없습니다.";
+        } else if (ext === 'hlz') {
+          textarea.value = "⏳ HLZ 압축 해제 및 XML 추출 중...";
+          const arrayBuffer = await file.arrayBuffer();
+          const hlzZip = await JSZip.loadAsync(arrayBuffer);
+          let extractedText = "";
+          for (const innerPath in hlzZip.files) {
+            if (innerPath.toLowerCase().endsWith('.xml')) {
+              extractedText = await hlzZip.files[innerPath].async("string");
+              break;
+            }
+          }
+          textarea.value = extractedText ? extractedText.trim() : "HLZ 안에 XML 파일이 없습니다.";
+        } else {
+          alert("지원하지 않는 파일 형식입니다.\nWord(.docx) 또는 HLZ 파일만 가능합니다.");
+          textarea.value = "";
+        }
+      } catch (error) {
+        textarea.value = "추출 실패";
+        alert("🚨 파일 추출 중 오류가 발생했습니다.\n" + error.message);
+      } finally {
+        textarea.disabled = false;
+        checkOAGenStep1();
+        if (e.target && e.target.value !== undefined) e.target.value = '';
+      }
+    }
+
+    // 최초명세서에서 청구항 자동 추출
+    function extractClaimsFromOAGenSpec() {
+      const specText = document.getElementById('oagen-original-spec').value;
+      if (!specText.trim()) {
+        alert('최초명세서 초안이 비어있습니다. 먼저 좌측에 명세서를 입력해주세요.');
+        return;
+      }
+
+      const regex = /([【\[](특허청구의 범위\vert{}청구범위\vert{}청구항\s*1)[】\]])|(What is claimed is|We claim|Claims\s*:)|(<claims>)/i;
+      const match = specText.match(regex);
+
+      if (match) {
+        let claimsText = specText.substring(match.index);
+        const summaryMatch = claimsText.match(/([【[]요약서[】]])|(Abstract\s*:)|(<abstract>)/i);
+        if (summaryMatch && summaryMatch.index > 0) {
+          claimsText = claimsText.substring(0, summaryMatch.index);
+        }
+
+        const pendingArea = document.getElementById('oagen-pending-claims');
+        pendingArea.value = claimsText.trim();
+        checkOAGenStep1();
+
+        pendingArea.classList.add('bg-indigo-100/50', 'ring-2', 'ring-indigo-400');
+        setTimeout(() => pendingArea.classList.remove('bg-indigo-100/50', 'ring-2', 'ring-indigo-400'), 600);
+      } else {
+        alert('명세서 텍스트에서 청구범위 시작 부분을 자동으로 찾지 못했습니다.\n직접 복사해서 붙여넣어 주세요.');
+      }
+    }
+
+    // 거절이유 통지서 단일 파일 업로드 & 취소
+    window.removeOAGenFile = function(event) {
+      event.stopPropagation();
+      oaGenState.officeActionFile = null;
+      document.getElementById('oagen-office-action').value = '';
+      document.getElementById('oagen-file-name').innerText = 'PDF, Word 파일 선택 또는 여기로 드래그';
+    };
+
+    async function handleOAGenFileUpload(e, droppedFile = null) {
+      const file = droppedFile || (e.target.files && e.target.files[0]);
+      if (!file) return;
+      const ext = file.name.toLowerCase();
+      if (!(ext.endsWith('.pdf') || ext.endsWith('.doc') || ext.endsWith('.docx'))) {
+        alert('지원하지 않는 파일 형식입니다. (PDF 또는 Word 파일만 가능)');
+        if (e && e.target) e.target.value = '';
+        return;
+      }
+
+      document.getElementById('oagen-file-name').innerHTML = `<span class="text-indigo-400 font-bold">⏳ ${file.name} (파일 처리 중...)</span>`;
+
+      try {
+        const base64Data = await fileToBase64(file);
+        oaGenState.officeActionFile = { name: file.name, mimeType: file.type || 'application/pdf', base64: base64Data };
+        document.getElementById('oagen-file-name').innerHTML = `
+          <div class="flex items-center justify-center space-x-3">
+            <span class="text-indigo-600 font-black">✅ ${file.name} (업로드 완료)</span>
+            <button type="button" onclick="removeOAGenFile(event)" class="text-rose-400 hover:text-rose-600 font-black text-lg px-2 transition-colors" title="첨부 취소">✕</button>
+          </div>
+        `;
+        checkOAGenStep1();
+      } catch (err) {
+        document.getElementById('oagen-file-name').innerHTML = `<span class="text-rose-600 font-bold">❌ 업로드 실패</span>`;
+        alert("파일 처리 중 오류가 발생했습니다.");
+      }
+      if (e && e.target) e.target.value = '';
+    }
+
+    // 인용문헌(D1, D2...) 다중 파일 업로드 & 삭제
+    window.removeOAGenPriorFile = function(index) {
+      oaGenState.priorArtFiles.splice(index, 1);
+      renderOAGenPriorList();
+    };
+
+    function renderOAGenPriorList() {
+      const listEl = document.getElementById('oagen-prior-list');
+      if (!listEl) return;
+      listEl.innerHTML = oaGenState.priorArtFiles.map((f, i) => `
+        <li class="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs shadow-sm animate-fadeIn">
+          <span class="truncate w-[85%] font-bold text-slate-700">📄 [인용문헌 ${i + 1}] ${f.name}</span>
+          <button type="button" onclick="removeOAGenPriorFile(${i})" class="text-rose-400 hover:text-rose-600 font-black px-2">✕</button>
+        </li>
+      `).join('');
+    }
+
+    function handleOAGenPriorSelect(e, droppedFiles = null) {
+      const files = droppedFiles || (e.target && e.target.files ? Array.from(e.target.files) : []);
+      if (!files || files.length === 0) return;
+
+      const validFiles = files.filter(f => {
+        const ext = f.name.toLowerCase();
+        return ext.endsWith('.pdf') || ext.endsWith('.doc') || ext.endsWith('.docx');
+      });
+
+      if (validFiles.length > 0) {
+        oaGenState.priorArtFiles = [...oaGenState.priorArtFiles, ...validFiles];
+        renderOAGenPriorList();
+        const dropText = document.getElementById('oagen-prior-drop-text');
+        if (dropText) {
+          dropText.innerHTML = `<span class="text-indigo-600 font-black">✅ ${validFiles.length}개의 인용문헌 추가됨!</span>`;
+          setTimeout(() => { dropText.innerText = "인용문헌(D1, D2...) PDF/Word 선택 또는 드래그"; }, 1500);
+        }
+      } else {
+        alert('지원하지 않는 파일 형식입니다. (PDF 또는 Word 파일만 가능)');
+      }
+      if (e && e.target) e.target.value = '';
+    }
+
+    // 드래그앤드롭 이벤트 바인딩
+    function setupOAGenDragAndDrop() {
+      const specZone = document.getElementById('oagen-original-spec');
+      if (specZone) {
+        ['dragenter', 'dragover'].forEach(ev => specZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); specZone.classList.add('bg-indigo-50', 'ring-2', 'ring-indigo-400'); }));
+        ['dragleave', 'drop'].forEach(ev => specZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); specZone.classList.remove('bg-indigo-50', 'ring-2', 'ring-indigo-400'); }));
+        specZone.addEventListener('drop', e => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            extractTextForOAGenSpec({ target: { files: e.dataTransfer.files, value: '' } });
+          }
+        });
+      }
+
+      const oaZone = document.getElementById('dropzone-oagen-oa');
+      if (oaZone) {
+        ['dragenter', 'dragover'].forEach(ev => oaZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); oaZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
+        ['dragleave', 'drop'].forEach(ev => oaZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); oaZone.classList.remove('bg-indigo-50', 'border-indigo-400'); }));
+        oaZone.addEventListener('drop', e => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleOAGenFileUpload(null, e.dataTransfer.files[0]);
+          }
+        });
+      }
+
+      const priorZone = document.getElementById('dropzone-oagen-prior');
+      if (priorZone) {
+        ['dragenter', 'dragover'].forEach(ev => priorZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); priorZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
+        ['dragleave', 'drop'].forEach(ev => priorZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); priorZone.classList.remove('bg-indigo-50', 'border-indigo-400'); }));
+        priorZone.addEventListener('drop', e => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleOAGenPriorSelect(null, Array.from(e.dataTransfer.files));
+          }
+        });
+      }
+    }
+
+    function clearOAGenInputs() {
+      oaGenState.officeActionFile = null;
+      oaGenState.priorArtFiles = [];
+      oaGenState.lastResultText = "";
+      document.getElementById('oagen-original-spec').value = '';
+      document.getElementById('oagen-pending-claims').value = '';
+      document.getElementById('oagen-user-notes').value = '';
+      document.getElementById('oagen-file-name').innerText = 'PDF, Word 파일 선택 또는 여기로 드래그';
+      renderOAGenPriorList();
+    }
+
+    // AI 대응안 생성 실행 (스트리밍)
+    async function runOAGen() {
+      const btn = document.getElementById('oagen-btn-generate');
+      const spinner = document.getElementById('oagen-loading-spinner');
+      const errBox = document.getElementById('oagen-error-box-2');
+
+      btn.classList.add('hidden');
+      spinner.classList.remove('hidden');
+      spinner.classList.add('flex');
+      errBox.classList.add('hidden');
+
+      try {
+        const processPriorFiles = async (files) => Promise.all(
+          files.map(async f => ({ name: f.name, mimeType: f.type || 'application/pdf', base64: await fileToBase64(f) }))
+        );
+
+        const selectedStrategy = document.querySelector('input[name="oagen-strategy"]:checked')?.value || 'balanced';
+
+        const bodyData = {
+          type: 'oa_generate',
+          model: document.getElementById('model-oagen').value,
+          data: {
+            targetCountry: oaGenState.country,
+            originalSpecification: document.getElementById('oagen-original-spec').value,
+            officeAction: oaGenState.officeActionFile,
+            pendingClaims: document.getElementById('oagen-pending-claims').value,
+            priorArtFiles: await processPriorFiles(oaGenState.priorArtFiles),
+            strategy: selectedStrategy,
+            userNotes: document.getElementById('oagen-user-notes').value.trim()
+          }
+        };
+
+        goToOAGenStep(2);
+        const container = document.getElementById('oagen-result-content');
+        container.innerHTML = `
+          <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+            <h3 class="text-lg font-black text-slate-900 flex items-center">✨ AI 맞춤형 OA 대응 전략서 (보정안 및 반박 논리)</h3>
+            <span id="oagen-status-badge" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 animate-pulse">거절이유 및 선행문헌 분석 중...</span>
+          </div>
+          <div id="oagen-stream-output" class="select-text text-sm text-slate-800 leading-loose whitespace-pre-wrap font-medium"></div>
+        `;
+
+        const outputDiv = document.getElementById('oagen-stream-output');
+        const statusBadge = document.getElementById('oagen-status-badge');
+        let isFirst = true;
+        let accText = "";
+
+        const formatText = (text) => text
+          .replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/\*\*(.*?)\*\*/g, `<strong class="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">$1</strong>`)
+          .replace(/### (.*)/g, '<br><h3 class="text-[15px] font-black text-slate-900 bg-slate-100 border border-slate-200 px-4 py-2.5 rounded-xl inline-block mt-6 mb-3 shadow-sm w-full">$1</h3>');
+
+        await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
+          if (isFirst) {
+            isFirst = false;
+            statusBadge.innerText = "대응안 작성 중 ✍️";
+            statusBadge.classList.remove('animate-pulse');
+          }
+          accText += textChunk;
+          oaGenState.lastResultText = accText;
+          outputDiv.innerHTML = formatText(accText);
+          container.parentElement.scrollTop = container.parentElement.scrollHeight;
+        });
+
+        statusBadge.innerText = "✅ 대응안 도출 완료";
+        statusBadge.className = "text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm";
+        gtag('event', 'feature_execution', { 'feature_name': 'oa_generate', 'model_name': document.getElementById('model-oagen').value, 'status': 'success', 'error_message': 'none' });
+
+      } catch (error) {
+        gtag('event', 'feature_execution', { 'feature_name': 'oa_generate', 'model_name': document.getElementById('model-oagen').value, 'status': 'error', 'error_message': error.message });
+        errBox.innerText = `⚠️ 에러 발생: ${error.message}`;
+        errBox.classList.remove('hidden');
+        goToOAGenStep(1);
+      } finally {
+        btn.classList.remove('hidden');
+        spinner.classList.add('hidden');
+        spinner.classList.remove('flex');
+      }
+    }
+
+    function copyOAGenResult() {
+      if (!oaGenState.lastResultText) return alert('복사할 내용이 없습니다.');
+      navigator.clipboard.writeText(oaGenState.lastResultText);
+      alert('OA 대응안이 클립보드에 복사되었습니다.');
+    }
+
+    function sendOAGenToDraft() {
+      if (!oaGenState.lastResultText) return alert('전달할 대응안 결과가 없습니다.');
+      
+      document.getElementById('userDraftResponse').value = oaGenState.lastResultText;
+      const specVal = document.getElementById('oagen-original-spec').value.trim();
+      if (specVal && !document.getElementById('preAmendmentContext').value.trim()) {
+        document.getElementById('preAmendmentContext').value = specVal;
+      }
+
+      switchTab('draft');
+      goToDraftStep(0);
+      checkDraftStep1();
+      alert('✅ 생성된 OA 대응안이 [의견서 생성기]의 "대응 초안" 란에 자동으로 입력되었습니다!\n좌측에 거절이유 통지서 원문(PDF)만 넣어주시면 바로 의견서 양식으로 변환할 수 있습니다.');
+    }  
 </script>
 </body>
 </html>
