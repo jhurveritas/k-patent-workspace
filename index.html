@@ -2676,6 +2676,9 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
             #oagen-stream-output p { margin: 6px 0; }
             #oagen-stream-output strong, #oagen-stream-output b { font-weight: 800; color: #111827; }
             #oagen-stream-output h1, #oagen-stream-output h2, #oagen-stream-output h3 { font-weight: 900; color: #1e293b; margin-top: 18px; margin-bottom: 8px; }
+            /* 👇 [신규 추가] 청구항 보정사항 변경내용 추적(추가/삭제) 표시 스타일 */
+            #oagen-stream-output ins { color: #2563eb; font-weight: 800; text-decoration: underline; background-color: #eff6ff; padding: 1px 3px; border-radius: 3px; }
+            #oagen-stream-output del { color: #dc2626; text-decoration: line-through; background-color: #fef2f2; padding: 1px 3px; border-radius: 3px; }
           </style>
           <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
             <h3 class="text-lg font-black text-slate-900 flex items-center">
@@ -2731,7 +2734,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       }
     }
 
-    // 8. 표(Table) 테두리, 셀 병합, 볼드체 서식을 100% 살려서 Word 파일로 다운로드
+    // 8. 표(Table) 테두리, 볼드체, 그리고 청구항 보정 변경내용 추적(<ins>, <del>)을 살려서 Word 다운로드
     window.downloadOAGenWord = function() {
       if (!oaGenState.lastResultText) return alert('다운로드할 대응안 내용이 없습니다.');
 
@@ -2752,6 +2755,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
             <w:WordDocument>
               <w:View>Print</w:View>
               <w:Zoom>100</w:Zoom>
+              <w:TrackRevisions/>
               <w:DoNotOptimizeForBrowser/>
             </w:WordDocument>
           </xml>
@@ -2799,6 +2803,18 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
             }
             strong, b {
               font-weight: bold;
+            }
+            /* 🔥 워드 파일 내 청구항 보정사항(추가/삭제) 변경내용 추적 전용 스타일 */
+            ins {
+              color: #0000FF;
+              font-weight: bold;
+              text-decoration: underline;
+              mso-style-name: "Inserted";
+            }
+            del {
+              color: #FF0000;
+              text-decoration: line-through;
+              mso-style-name: "Deleted";
             }
           </style>
         </head>
