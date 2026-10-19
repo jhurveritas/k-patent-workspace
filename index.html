@@ -461,74 +461,105 @@ textarea, input {
         </div>
       </div>
 
-      <!-- [Step 2] 인용문헌, 워드 양식 및 대응 전략 설정 -->
+      <!-- [Step 2] 인용문헌, 현지대리인 코멘트, 워드 양식 및 대응 전략 설정 -->
       <div id="oagen-step-2" class="hidden p-10 space-y-8 animate-fadeIn flex-grow flex-col">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 flex-grow">
           
-          <!-- 좌측: 1) 인용문헌 업로드 & 2) 워드 양식(.docx) 업로드 -->
-          <div class="flex flex-col space-y-6">
-            <div class="flex flex-col space-y-2.5">
+          <!-- 좌측: 1) 인용문헌 & 2) 현지대리인 코멘트 & 3) 워드 양식(.docx) 업로드 -->
+          <div class="flex flex-col space-y-5">
+            
+            <!-- 1. 인용문헌 -->
+            <div class="flex flex-col space-y-2">
               <div class="flex justify-between items-center">
                 <label class="text-[11px] font-black text-gray-400 uppercase tracking-wider">1. 인용참증 / 선행문헌 (D1, D2 등 선택 첨부)</label>
                 <span class="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">다중 첨부 가능</span>
               </div>
-              <div id="dropzone-oagen-prior" class="border-2 border-dashed border-slate-300 rounded-2xl p-5 text-center cursor-pointer hover:bg-indigo-50 transition flex flex-col items-center justify-center gap-1.5 min-h-[120px]" onclick="document.getElementById('oagen-prior-files').click()">
+              <div id="dropzone-oagen-prior" class="border-2 border-dashed border-slate-300 rounded-2xl p-4 text-center cursor-pointer hover:bg-indigo-50 transition flex flex-col items-center justify-center gap-1 min-h-[95px]" onclick="document.getElementById('oagen-prior-files').click()">
                 <input type="file" id="oagen-prior-files" multiple accept=".pdf,.doc,.docx" class="hidden" onchange="handleOAGenPriorSelect(event)">
-                <svg class="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 <span id="oagen-prior-drop-text" class="text-xs font-bold text-slate-600">인용문헌(D1, D2...) PDF/Word 선택 또는 드래그</span>
               </div>
-              <ul id="oagen-prior-list" class="space-y-1.5 overflow-y-auto max-h-[110px] pr-1"></ul>
+              <ul id="oagen-prior-list" class="space-y-1.5 overflow-y-auto max-h-[85px] pr-1"></ul>
             </div>
 
-            <div class="flex flex-col space-y-2.5 flex-grow">
+            <!-- 2. 현지대리인 코멘트 파일 (신규 추가!) -->
+            <div class="flex flex-col space-y-2">
               <div class="flex justify-between items-center">
-                <label class="text-[11px] font-black text-indigo-600 uppercase tracking-wider">2. 대응안 워드 양식 파일 (.docx)</label>
+                <label class="text-[11px] font-black text-gray-400 uppercase tracking-wider">2. 현지대리인 코멘트 / 검토의견 (선택 첨부)</label>
+                <span class="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">해외 OA 등 참고용</span>
+              </div>
+              <div id="dropzone-oagen-agent" class="border-2 border-dashed border-slate-300 rounded-2xl p-4 text-center cursor-pointer hover:bg-indigo-50 transition flex flex-col items-center justify-center gap-1 min-h-[95px]" onclick="document.getElementById('oagen-agent-file').click()">
+                <input type="file" id="oagen-agent-file" accept=".pdf,.doc,.docx" class="hidden" onchange="handleOAGenAgentUpload(event)">
+                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                <div id="oagen-agent-name" class="text-xs font-bold text-slate-600">현지대리인 코멘트 PDF/Word 선택 또는 드래그</div>
+              </div>
+            </div>
+
+            <!-- 3. 최종 대응안 워드 양식(.docx) 업로드 -->
+            <div class="flex flex-col space-y-2 flex-grow">
+              <div class="flex justify-between items-center">
+                <label class="text-[11px] font-black text-indigo-600 uppercase tracking-wider">3. 대응안 워드 양식 파일 (.docx)</label>
                 <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">Word 출력용 양식</span>
               </div>
-              <div id="dropzone-oagen-template" class="border-2 border-dashed border-indigo-200 bg-indigo-50/20 rounded-2xl p-5 text-center cursor-pointer hover:bg-indigo-50 transition flex flex-col items-center justify-center gap-2 flex-grow min-h-[130px]" onclick="document.getElementById('oagen-template-file').click()">
+              <div id="dropzone-oagen-template" class="border-2 border-dashed border-indigo-200 bg-indigo-50/20 rounded-2xl p-4 text-center cursor-pointer hover:bg-indigo-50 transition flex flex-col items-center justify-center gap-1.5 flex-grow min-h-[105px]" onclick="document.getElementById('oagen-template-file').click()">
                 <input type="file" id="oagen-template-file" accept=".docx" class="hidden" onchange="handleOAGenTemplateUpload(event)">
-                <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 <div id="oagen-template-name" class="text-xs font-bold text-slate-600">사용하실 대응안 Word 양식(.docx) 선택 또는 드래그</div>
                 <p class="text-[10px] text-slate-400 leading-relaxed">
-                  양식 파일의 목차/구조에 맞춰 대응안이 작성되며 Word 파일로 완성됩니다.<br>
-                  (팁: 워드 양식 본문에 <code class="bg-white px-1 py-0.5 rounded border text-indigo-600 font-mono">{content}</code>를 적어두시면 원본 표/로고 서식 그대로 삽입됩니다)
+                  양식 파일의 목차/구조에 맞춰 대응안이 작성되며 Word 파일로 완성됩니다.
                 </p>
               </div>
             </div>
           </div>
 
-          <!-- 우측: 대응 전략 옵션 및 사용자 가이드라인 -->
-          <div class="flex flex-col space-y-5">
-            <div class="flex flex-col space-y-2.5">
-              <label class="text-[11px] font-black text-gray-400 uppercase tracking-wider">3. 희망 대응 방향 (전략 선택)</label>
-              <div class="grid grid-cols-1 gap-2.5">
-                <label class="flex items-center space-x-3 p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-indigo-50/40 transition-colors has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/60">
-                  <input type="radio" name="oagen-strategy" value="balanced" checked class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
-                  <div>
-                    <span class="block text-xs font-black text-slate-800">⚖️ 종합 추천 (독립항 보정안 + 무보정 반박 논리 병행)</span>
-                    <span class="block text-[11px] text-slate-500">선행문헌과 구별되는 최적의 한정사항 추천 및 반박 논리를 모두 도출합니다.</span>
-                  </div>
-                </label>
-                <label class="flex items-center space-x-3 p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-indigo-50/40 transition-colors has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/60">
-                  <input type="radio" name="oagen-strategy" value="argument_only" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
-                  <div>
-                    <span class="block text-xs font-black text-slate-800">🛡️ 무보정 의견서 반박 최우선 (권리범위 유지)</span>
-                    <span class="block text-[11px] text-slate-500">청구항 보정을 최소화하고 심사관의 인용문헌 결합/해석 오류를 타격합니다.</span>
-                  </div>
-                </label>
-                <label class="flex items-center space-x-3 p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-indigo-50/40 transition-colors has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/60">
-                  <input type="radio" name="oagen-strategy" value="amendment_focus" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500">
-                  <div>
-                    <span class="block text-xs font-black text-slate-800">✂️ 조기 등록을 위한 적극적 보정안 도출 (종속항 병합/명세서 한정)</span>
-                    <span class="block text-[11px] text-slate-500">명세서 실시예 및 종속항에서 선행문헌에 없는 구성을 찾아 구체적인 보정청구항을 설계합니다.</span>
-                  </div>
-                </label>
-              </div>
+          <!-- 우측: 희망 대응 방향 (복수 선택 가능 + 직접 추가 지시사항 통합) -->
+          <div class="flex flex-col space-y-3">
+            <div class="flex justify-between items-center">
+              <label class="text-[11px] font-black text-gray-400 uppercase tracking-wider">희망 대응 방향 (복수 선택 가능)</label>
+              <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">체크된 방안 모두 도출</span>
             </div>
+            
+            <div class="flex flex-col space-y-2.5 flex-grow">
+              <!-- 옵션 1 -->
+              <label class="flex items-start space-x-3 p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-indigo-50/40 transition-colors has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/60">
+                <input type="checkbox" name="oagen-strategy" value="balanced" checked class="mt-0.5 w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500">
+                <div>
+                  <span class="block text-xs font-black text-slate-800">⚖️ 종합 추천안 (독립항 최소 보정안 + 반박 논리 병행)</span>
+                  <span class="block text-[11px] text-slate-500 mt-0.5">선행문헌과 구별되는 최적의 한정사항 추천 및 반박 논리를 균형 있게 도출합니다.</span>
+                </div>
+              </label>
 
-            <div class="flex flex-col space-y-2 flex-grow">
-              <label class="text-[11px] font-black text-gray-400 uppercase tracking-wider">4. 추가 지시사항 / 핵심 기술 포인트 (선택사항)</label>
-              <textarea id="oagen-user-notes" class="flex-grow p-4 rounded-2xl border border-gray-200 bg-slate-50/50 text-xs leading-relaxed outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none" placeholder="(선택 입력) 예: '청구항 3을 청구항 1에 병합하는 방향으로 짜줘', 'D1의 단락 [0045] 구성을 중점적으로 반박해줘' 등 특별히 반영할 사항이 있다면 적어주세요."></textarea>
+              <!-- 옵션 2 -->
+              <label class="flex items-start space-x-3 p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-indigo-50/40 transition-colors has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/60">
+                <input type="checkbox" name="oagen-strategy" value="argument_only" class="mt-0.5 w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500">
+                <div>
+                  <span class="block text-xs font-black text-slate-800">🛡️ 무보정 의견서 반박안 (권리범위 유지 최우선)</span>
+                  <span class="block text-[11px] text-slate-500 mt-0.5">청구항 보정 없이 심사관의 인용문헌 결합/해석 오류 및 도면상 구조적 차이를 타격합니다.</span>
+                </div>
+              </label>
+
+              <!-- 옵션 3 -->
+              <label class="flex items-start space-x-3 p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-indigo-50/40 transition-colors has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/60">
+                <input type="checkbox" name="oagen-strategy" value="amendment_focus" class="mt-0.5 w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500">
+                <div>
+                  <span class="block text-xs font-black text-slate-800">✂️ 조기 등록용 적극적 보정안 (종속항 병합 / 명세서·도면 한정)</span>
+                  <span class="block text-[11px] text-slate-500 mt-0.5">명세서 실시예·도면 및 종속항에서 선행문헌에 없는 구성을 찾아 구체적인 보정청구항을 설계합니다.</span>
+                </div>
+              </label>
+
+              <!-- 옵션 4: 직접 추가 지시사항 선택 및 입력 (통합됨!) -->
+              <div class="flex flex-col rounded-xl border border-gray-200 transition-colors has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50/30 flex-grow">
+                <label class="flex items-start space-x-3 p-3.5 cursor-pointer hover:bg-indigo-50/40 rounded-t-xl">
+                  <input type="checkbox" id="oagen-strategy-custom" name="oagen-strategy" value="custom" onchange="toggleOAGenCustomNotes(this)" class="mt-0.5 w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500">
+                  <div>
+                    <span class="block text-xs font-black text-slate-800">✍️ 직접 추가 지시사항 입력 (맞춤형 타겟 지시 / 핵심 기술 포인트)</span>
+                    <span class="block text-[11px] text-slate-500 mt-0.5">특정 종속항 병합 지시, 특정 단락 반박 등 원하는 대응 방향을 직접 입력하여 반영합니다.</span>
+                  </div>
+                </label>
+                <div id="oagen-custom-notes-wrap" class="hidden px-3.5 pb-3.5 flex-grow flex-col">
+                  <textarea id="oagen-user-notes" class="w-full h-full min-h-[95px] p-3 rounded-xl border border-indigo-200 bg-white text-xs leading-relaxed outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none" placeholder="예: '제1안은 청구항 3을 청구항 1에 병합하고, 제2안은 명세서 단락 [0045]의 구성을 한정하는 보정안으로 각각 작성해줘' 등 자유롭게 지시사항을 입력하세요."></textarea>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2103,11 +2134,12 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
     let oaGenState = {
       country: null,
       specFile: null,            // 최초명세서 원본 파일 객체 { name, mimeType, base64 }
-      specImages: [],            // Word(.docx)나 HLZ 내부에 포함된 도면 이미지 배열 (AI 멀티모달 전달용)
+      specImages: [],            // Word(.docx)나 HLZ 내부에 포함된 도면 이미지 배열
       specExtractedText: "",     // 청구항 자동 추출 및 AI 보조 참조용 텍스트
       isSpecScannedPDF: false,   // 텍스트가 없는 순수 이미지 스캔본 PDF 여부
-      officeActionFile: null,
-      priorArtFiles: [],
+      officeActionFile: null,    // 거절이유 통지서 파일
+      priorArtFiles: [],         // 인용문헌 파일 배열
+      agentCommentFile: null,    // 💡 [신규] 현지대리인 코멘트 파일 { name, mimeType, base64 }
       templateFile: null,
       templateArrayBuffer: null,
       templateText: "",
@@ -2163,7 +2195,21 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       document.getElementById('oagen-error-box-1').classList.add('hidden');
     }
 
-    // 💡 [핵심] 최초명세서 파일 통째 업로드 + 도면 유지 + 청구항 추출 가능 여부 자동 판별
+    // 💡 직접 추가 지시사항 체크박스 토글 시 입력창 열기/닫기
+    window.toggleOAGenCustomNotes = function(checkbox) {
+      const wrap = document.getElementById('oagen-custom-notes-wrap');
+      const textarea = document.getElementById('oagen-user-notes');
+      if (checkbox.checked) {
+        wrap.classList.remove('hidden');
+        wrap.classList.add('flex');
+        textarea.focus();
+      } else {
+        wrap.classList.add('hidden');
+        wrap.classList.remove('flex');
+      }
+    };
+
+    // 최초명세서 파일 통째 업로드 + 도면 유지 + 청구항 추출 가능 여부 자동 판별
     window.removeOAGenSpecFile = function(event) {
       event.stopPropagation();
       oaGenState.specFile = null;
@@ -2202,7 +2248,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         oaGenState.specExtractedText = "";
         oaGenState.isSpecScannedPDF = false;
 
-        // 파일 종류별로 백그라운드에서 텍스트(청구항 추출용) 및 내부 도면 이미지 추출
         if (ext === 'pdf') {
           try {
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -2213,7 +2258,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
               fullText += textContent.items.map(item => item.str).join(' ') + "\n\n";
             }
             oaGenState.specExtractedText = fullText.trim();
-            // 페이지당 평균 글자 수가 20자 미만이면 이미지 스캔본 PDF로 판별
             if (oaGenState.specExtractedText.length < pdf.numPages * 20) {
               oaGenState.isSpecScannedPDF = true;
             }
@@ -2223,7 +2267,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         } else if (ext === 'docx') {
           const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
           oaGenState.specExtractedText = result.value.trim();
-          // Word(.docx) 내부의 도면 이미지들(word/media/*)도 추출하여 AI가 볼 수 있게 저장
           const zip = await JSZip.loadAsync(arrayBuffer);
           for (const p in zip.files) {
             if (p.startsWith('word/media/') && /\.(png|jpg|jpeg|gif|bmp)$/i.test(p)) {
@@ -2277,7 +2320,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       if (e && e.target) e.target.value = '';
     }
 
-    // 💡 [하이브리드] 최초명세서 파일에서 청구항 자동 추출 (실패 또는 스캔본일 경우 직접 입력 유도)
+    // 최초명세서 파일에서 청구항 자동 추출
     function extractClaimsFromOAGenSpec() {
       const pendingArea = document.getElementById('oagen-pending-claims');
 
@@ -2347,6 +2390,62 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       } catch (err) {
         document.getElementById('oagen-file-name').innerHTML = `<span class="text-rose-600 font-bold">❌ 업로드 실패</span>`;
         alert("파일 처리 중 오류가 발생했습니다.");
+      }
+      if (e && e.target) e.target.value = '';
+    }
+
+    // 💡 [신규] 현지대리인 코멘트 파일 업로드 & 취소
+    window.removeOAGenAgentFile = function(event) {
+      event.stopPropagation();
+      oaGenState.agentCommentFile = null;
+      document.getElementById('oagen-agent-file').value = '';
+      document.getElementById('oagen-agent-name').innerText = '현지대리인 코멘트 PDF/Word 선택 또는 드래그';
+    };
+
+    async function handleOAGenAgentUpload(e, droppedFile = null) {
+      const file = droppedFile || (e.target.files && e.target.files[0]);
+      if (!file) return;
+      const ext = file.name.toLowerCase();
+      if (!(ext.endsWith('.pdf') || ext.endsWith('.doc') || ext.endsWith('.docx'))) {
+        alert('지원하지 않는 파일 형식입니다. (PDF 또는 Word 파일만 가능)');
+        if (e && e.target) e.target.value = '';
+        return;
+      }
+
+      const nameEl = document.getElementById('oagen-agent-name');
+      nameEl.innerHTML = `<span class="text-indigo-500 font-bold">⏳ ${file.name} 처리 중...</span>`;
+
+      try {
+        if (ext.endsWith('.docx')) {
+          // Word(.docx) 코멘트 파일은 텍스트도 함께 추출하고 바이너리도 보관
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+          const base64Data = await fileToBase64(file);
+          oaGenState.agentCommentFile = {
+            name: file.name,
+            mimeType: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            base64: base64Data,
+            extractedText: result.value.trim()
+          };
+        } else {
+          const base64Data = await fileToBase64(file);
+          oaGenState.agentCommentFile = {
+            name: file.name,
+            mimeType: 'application/pdf',
+            base64: base64Data,
+            extractedText: ""
+          };
+        }
+
+        nameEl.innerHTML = `
+          <div class="flex items-center justify-center space-x-2">
+            <span class="text-amber-700 font-black">✅ [코멘트 첨부됨] ${file.name}</span>
+            <button type="button" onclick="removeOAGenAgentFile(event)" class="text-rose-400 hover:text-rose-600 font-black text-base px-1.5" title="첨부 취소">✕</button>
+          </div>
+        `;
+      } catch (err) {
+        nameEl.innerHTML = `<span class="text-rose-600 font-bold">❌ 파일 읽기 실패</span>`;
+        alert("현지대리인 코멘트 파일 처리 중 오류가 발생했습니다.\n" + err.message);
       }
       if (e && e.target) e.target.value = '';
     }
@@ -2437,7 +2536,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
 
     // 드래그앤드롭 이벤트 바인딩
     function setupOAGenDragAndDrop() {
-      // 1) 최초명세서 파일 드롭존
       const specZone = document.getElementById('dropzone-oagen-spec');
       if (specZone) {
         ['dragenter', 'dragover'].forEach(ev => specZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); specZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
@@ -2449,7 +2547,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         });
       }
 
-      // 2) 거절이유 통지서 드롭존
       const oaZone = document.getElementById('dropzone-oagen-oa');
       if (oaZone) {
         ['dragenter', 'dragover'].forEach(ev => oaZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); oaZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
@@ -2461,7 +2558,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         });
       }
 
-      // 3) 인용문헌 다중 드롭존
       const priorZone = document.getElementById('dropzone-oagen-prior');
       if (priorZone) {
         ['dragenter', 'dragover'].forEach(ev => priorZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); priorZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
@@ -2473,7 +2569,18 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         });
       }
 
-      // 4) 워드 양식(.docx) 드롭존
+      // 현지대리인 코멘트 드롭존
+      const agentZone = document.getElementById('dropzone-oagen-agent');
+      if (agentZone) {
+        ['dragenter', 'dragover'].forEach(ev => agentZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); agentZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
+        ['dragleave', 'drop'].forEach(ev => agentZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); agentZone.classList.remove('bg-indigo-50', 'border-indigo-400'); }));
+        agentZone.addEventListener('drop', e => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleOAGenAgentUpload(null, e.dataTransfer.files[0]);
+          }
+        });
+      }
+
       const tplZone = document.getElementById('dropzone-oagen-template');
       if (tplZone) {
         ['dragenter', 'dragover'].forEach(ev => tplZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); tplZone.classList.add('bg-indigo-100/60', 'border-indigo-500'); }));
@@ -2493,6 +2600,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       oaGenState.isSpecScannedPDF = false;
       oaGenState.officeActionFile = null;
       oaGenState.priorArtFiles = [];
+      oaGenState.agentCommentFile = null;
       oaGenState.templateFile = null;
       oaGenState.templateArrayBuffer = null;
       oaGenState.templateText = "";
@@ -2502,6 +2610,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       document.getElementById('oagen-spec-file-name').innerText = 'PDF, Word(.docx), HLZ 파일 선택 또는 드래그';
       document.getElementById('oagen-spec-subtext').innerText = '도면과 명세서 전체가 AI에게 전달되며, 청구항 자동 추출을 지원합니다.';
       document.getElementById('oagen-file-name').innerText = 'PDF, Word 파일 선택 또는 여기로 드래그';
+      document.getElementById('oagen-agent-name').innerText = '현지대리인 코멘트 PDF/Word 선택 또는 드래그';
       document.getElementById('oagen-template-name').innerText = '사용하실 대응안 Word 양식(.docx) 선택 또는 드래그';
       renderOAGenPriorList();
     }
@@ -2511,6 +2620,25 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       const btn = document.getElementById('oagen-btn-generate');
       const spinner = document.getElementById('oagen-loading-spinner');
       const errBox = document.getElementById('oagen-error-box-2');
+
+      // 💡 복수 선택된 희망 대응 방향 확인
+      const checkedEls = Array.from(document.querySelectorAll('input[name="oagen-strategy"]:checked'));
+      if (checkedEls.length === 0) {
+        errBox.innerText = "⚠️ 최소 1개 이상의 '희망 대응 방향'을 선택해 주세요.";
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      const selectedStrategies = checkedEls.map(el => el.value);
+      const isCustomChecked = selectedStrategies.includes('custom');
+      const userNotesVal = document.getElementById('oagen-user-notes').value.trim();
+
+      if (isCustomChecked && !userNotesVal) {
+        errBox.innerText = "⚠️ '직접 추가 지시사항 입력'을 선택하셨습니다. 지시사항 내용을 입력해 주세요.";
+        errBox.classList.remove('hidden');
+        document.getElementById('oagen-user-notes').focus();
+        return;
+      }
 
       btn.classList.add('hidden');
       spinner.classList.remove('hidden');
@@ -2522,23 +2650,21 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
           files.map(async f => ({ name: f.name, mimeType: f.type || 'application/pdf', base64: await fileToBase64(f) }))
         );
 
-        const selectedStrategy = document.querySelector('input[name="oagen-strategy"]:checked')?.value || 'balanced';
-
         const bodyData = {
           type: 'oa_generate',
           model: document.getElementById('model-oagen').value,
           data: {
             targetCountry: oaGenState.country,
-            // 🔥 도면이 포함된 최초명세서 파일 원본 + 추출된 텍스트/도면 이미지를 모두 전달!
             originalSpecificationFile: oaGenState.specFile,
             originalSpecificationImages: oaGenState.specImages,
             originalSpecificationText: oaGenState.specExtractedText,
             officeAction: oaGenState.officeActionFile,
             pendingClaims: document.getElementById('oagen-pending-claims').value,
             priorArtFiles: await processPriorFiles(oaGenState.priorArtFiles),
+            agentCommentFile: oaGenState.agentCommentFile, // 🔥 현지대리인 코멘트 파일 전달
             userTemplate: oaGenState.templateText,
-            strategy: selectedStrategy,
-            userNotes: document.getElementById('oagen-user-notes').value.trim()
+            strategies: selectedStrategies,                // 🔥 복수 선택된 대응 전략 배열 전달
+            userNotes: isCustomChecked ? userNotesVal : "" // 🔥 직접 추가 지시사항 전달
           }
         };
 
