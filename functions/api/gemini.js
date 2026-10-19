@@ -344,17 +344,27 @@ ${userTemplate}`;
               officeAction,
               pendingClaims,
               priorArtFiles,
+              agentCommentFile, // 💡 현지대리인 코멘트 파일
               userTemplate,
-              strategy,
+              strategies,       // 💡 복수 선택된 전략 배열
+              strategy,         // 하위 호환용
               userNotes
             } = requestBody.data;
 
             const strategyMap = {
-              'balanced': '종합 추천 (독립항 최소 한정 보정안 도출 + 무보정 의견서 반박 논리 병행)',
-              'argument_only': '무보정 의견서 반박 최우선 (청구항 권리범위 유지를 위해 보정을 지양하고, 심사관의 인용문헌 해석/결합 오류 및 도면상 구조적 차이를 집중 타격)',
-              'amendment_focus': '조기 등록을 위한 적극적 보정안 도출 (종속항 병합 또는 최초명세서 실시예/도면의 구체적 구성을 독립항에 한정하여 선행문헌과 명확히 차별화)'
+              'balanced': '종합 추천안 (독립항 최소 한정 보정안 도출 + 의견서 반박 논리 병행)',
+              'argument_only': '무보정 의견서 반박안 (청구항 권리범위 유지를 위해 보정을 지양하고, 심사관의 인용문헌 해석/결합 오류 및 도면상 구조적 차이를 집중 타격)',
+              'amendment_focus': '조기 등록을 위한 적극적 보정안 (종속항 병합 또는 최초명세서 실시예/도면의 구체적 구성을 독립항에 한정하여 선행문헌과 명확히 차별화)',
+              'custom': `사용자 직접 지시사항 맞춤형 대응안 (지시사항: "${userNotes || '별도 지시사항 참조'}")`
             };
-            const strategyDesc = strategyMap[strategy] || strategyMap['balanced'];
+
+            const selectedList = Array.isArray(strategies) && strategies.length > 0
+              ? strategies
+              : [strategy || 'balanced'];
+
+            const strategyDescriptions = selectedList
+              .map((s, idx) => `[제${idx + 1}안] ${strategyMap[s] || s}`)
+              .join('\n   ');
 
             const countryRuleMap = {
               'KR': '대한민국(KIPO): 특허법 제47조제2항(신규사항 추가 금지 - 최초 명세서 또는 도면에 기재된 사항의 범위 내 보정), 제29조제1항/제2항(신규성/진보성 - 구성의 곤란성 및 효과의 현저성 중심), 제42조제4항(기재불비) 기준을 적용할 것.',
@@ -367,11 +377,11 @@ ${userTemplate}`;
 
             const systemInstruction = `🚨 [시스템 긴급 최우선 지시사항 - 타임아웃 방지] 🚨
 어떤 분석이나 문서 읽기를 시작하기 전에, 0.1초 내로 가장 먼저 무조건 아래 문장을 즉시 출력하십시오:
-"✨ **${targetCountry} 기준 맞춤형 OA 대응안(보정안 및 반박 논리) 도출을 시작합니다...**\n\n"
+"✨ **${targetCountry} 기준 맞춤형 OA 대응안(총 ${selectedList.length}개 방향) 도출을 시작합니다...**\n\n"
 
 [당신의 역할 및 목표]
 당신은 ${targetCountry} 특허 실무에 정통한 최고 수준의 시니어 변리사입니다.
-제공된 [거절이유 통지서], [본원 최초명세서 및 도면], [현재 계류중인 청구항], 그리고 [인용참증(선행문헌)]을 종합적으로 정밀 분석하여, 심사관의 거절이유를 완벽하게 극복할 수 있는 실전 'OA 대응안(검토보고서 및 보정/의견 전략)'을 작성하십시오.
+제공된 [거절이유 통지서], [본원 최초명세서 및 도면], [현재 계류중인 청구항], (첨부된 경우) [인용참증(선행문헌)] 및 [현지대리인 코멘트]를 종합적으로 정밀 분석하여, 심사관의 거절이유를 완벽하게 극복할 수 있는 실전 'OA 대응안(검토보고서 및 보정/의견 전략)'을 작성하십시오.
 
 [핵심 분석 및 작성 지침]
 1. 국가별 심사기준 엄수:
@@ -379,19 +389,21 @@ ${userTemplate}`;
 2. 도면 및 명세서 정밀 활용 (매우 중요):
    - 본원 명세서의 상세한 설명뿐만 아니라 **도면(도면 부호, 부재 간의 결합 관계, 형상, 배치, 신호 흐름 등)**과 선행문헌의 도면/구성을 시각적·기술적으로 비교하십시오.
    - 청구항 보정안을 제안할 때는 반드시 **본원 최초명세서의 어느 단락(예: 단락 [0035]) 또는 몇 번 도면(예: 도 3)에 보정 근거(Support)가 있는지 명확히 기재**하여 신규사항 추가(New Matter) 리스크를 원천 차단하십시오.
-3. 대응 방향성(전략) 준수:
-   - 선택된 전략: [${strategyDesc}]
-   - 사용자의 추가 지시사항("${userNotes || '별도 지시사항 없음'}")이 있다면 최우선으로 반영하십시오.
-4. 워드 양식(Template) 구조 준수:
-   ${userTemplate ? `- 사용자가 업로드한 [대응안 워드 양식]이 존재합니다. 반드시 아래 제공된 [대응안 워드 양식]의 목차, 표제어, 문체, 서식 흐름을 그대로 유지하여 내용을 채워 넣으십시오.` : `- 별도의 양식이 첨부되지 않았으므로 아래 [기본 출력 목차]에 따라 체계적인 마크다운(### 제목 및 **강조** 활용)으로 작성하십시오.
-   ### 1. 📋 거절이유 요약 및 인용문헌 현황
+3. 현지대리인 코멘트 반영 (첨부된 경우):
+   - 현지대리인 코멘트 문서가 제공된 경우, 현지대리인이 제안한 보정 방향, 심사관 성향 분석, 현지 법리적 주의사항을 면밀히 검토하여 대응안에 적극 반영하고 타당성을 평가하십시오.
+4. 복수 대응 방향성(전략) 완벽 구현:
+   - 사용자가 요청한 아래 ${selectedList.length}가지 대응 방향을 **누락 없이 각각 명확히 구분([제1안], [제2안] 등)하여** 구체적인 보정청구항(필요시)과 반박 논리를 제시하십시오:
+   ${strategyDescriptions}
+   ${userNotes ? `- 사용자 직접 추가 지시사항("${userNotes}")을 최우선으로 충실히 반영하십시오.` : ''}
+5. 워드 양식(Template) 구조 준수:
+   ${userTemplate ? `- 사용자가 업로드한 [대응안 워드 양식]이 존재합니다. 반드시 아래 제공된 [대응안 워드 양식]의 목차, 표제어, 문체, 서식 흐름을 그대로 유지하여 내용을 채워 넣되, 복수의 대응안이 모두 담기도록 구성하십시오.` : `- 별도의 양식이 첨부되지 않았으므로 아래 [기본 출력 목차]에 따라 체계적인 마크다운(### 제목 및 **강조** 활용)으로 작성하십시오.
+   ### 1. 📋 거절이유 요약 및 인용문헌(및 현지대리인 의견) 현황
    ### 2. 🔍 본원발명과 인용발명(D1, D2 등)의 핵심 구성 및 도면 대비 분석
-   ### 3. ✂️ 추천 청구항 보정안 및 명세서/도면 내 보정 근거 (신규사항 추가 검토 포함)
-   ### 4. 🛡️ 거절이유 극복을 위한 핵심 반박 논리 (의견서 전개용 상세 논리)
-   ### 5. 💡 실무자 종합 의견 및 후속 절차 가이드`}`;
+   ### 3. 💡 맞춤형 OA 대응 방안 (${selectedList.length > 1 ? '복수 대안: 제1안 ~ 제' + selectedList.length + '안 상세 제시' : '추천 보정안 및 보정 근거'})
+   ### 4. 🛡️ 각 대응안별 거절이유 극복을 위한 핵심 반박 논리 (의견서 전개용 상세 논리)
+   ### 5. 📌 실무자 종합 의견 및 후속 절차 가이드`}`;
 
             let parts = [];
-
             const uploadTasks = [];
 
             if (officeAction && officeAction.base64) {
@@ -424,12 +436,25 @@ ${userTemplate}`;
               });
             }
 
+            // 현지대리인 코멘트가 PDF인 경우 Gemini File API로 업로드
+            if (agentCommentFile && agentCommentFile.base64 && agentCommentFile.mimeType === 'application/pdf') {
+              uploadTasks.push(
+                uploadToGemini(agentCommentFile, apiKey).then(res => ({ roleType: 'agent_pdf', ...res }))
+              );
+            }
+
             const uploadedAssets = await Promise.all(uploadTasks);
 
             uploadedAssets.filter(a => a.roleType === 'oa').forEach(a => {
               parts.push({ text: `\n--- [거절이유 통지서(OA) 원문 파일: ${a.name}] 시작 ---\n` });
               parts.push({ fileData: { fileUri: a.fileUri, mimeType: a.mimeType } });
               parts.push({ text: `\n--- [거절이유 통지서(OA) 원문 파일] 끝 ---\n` });
+            });
+
+            uploadedAssets.filter(a => a.roleType === 'agent_pdf').forEach(a => {
+              parts.push({ text: `\n--- [현지대리인 코멘트 / 검토의견서 파일: ${a.name}] 시작 ---\n` });
+              parts.push({ fileData: { fileUri: a.fileUri, mimeType: a.mimeType } });
+              parts.push({ text: `\n--- [현지대리인 코멘트 / 검토의견서 파일] 끝 ---\n` });
             });
 
             uploadedAssets.filter(a => a.roleType === 'spec_pdf').forEach(a => {
@@ -462,12 +487,18 @@ ${userTemplate}`;
 
             let userPrompt = `[OA 대응안 생성 요청 자료]
 - 대상 국가: ${targetCountry}
-- 희망 대응 방향: ${strategyDesc}
-- 사용자 추가 지시사항: ${userNotes || '없음'}
+- 요청된 대응 방안 목록 (복수 선택됨):
+   ${strategyDescriptions}
+- 사용자 직접 추가 지시사항: ${userNotes || '없음'}
 
 [현재 계류중인 청구항 (심사 대상 청구항)]
 ${cleanPendingClaims}
 `;
+
+            // 현지대리인 코멘트가 Word(.docx)여서 텍스트가 추출된 경우 프롬프트에 추가
+            if (agentCommentFile && agentCommentFile.extractedText) {
+              userPrompt += `\n[현지대리인 코멘트 / 검토의견서 (${agentCommentFile.name})]\n${agentCommentFile.extractedText}\n`;
+            }
 
             if (cleanSpecText) {
               userPrompt += `\n[본원 최초명세서 텍스트 (보정 근거 탐색용)]\n${cleanSpecText}\n`;
