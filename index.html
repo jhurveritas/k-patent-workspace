@@ -2130,7 +2130,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         }
     };
 
-// ================== [신규] 국가별 OA 대응안 생성기 (OAGen) 로직 ==================
+// ================== [신규] 국가별 OA 대응안 생성기 (OAGen) 로직 (완전 복구본) ==================
     let oaGenState = {
       country: null,
       specFile: null,            // 최초명세서 원본 파일 객체 { name, mimeType, base64 }
@@ -2139,7 +2139,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       isSpecScannedPDF: false,   // 텍스트가 없는 순수 이미지 스캔본 PDF 여부
       officeActionFile: null,    // 거절이유 통지서 파일
       priorArtFiles: [],         // 인용문헌 파일 배열
-      agentCommentFile: null,    // 💡 [신규] 현지대리인 코멘트 파일 { name, mimeType, base64 }
+      agentCommentFile: null,    // 현지대리인 코멘트 파일 { name, mimeType, base64 }
       templateFile: null,
       templateArrayBuffer: null,
       templateText: "",
@@ -2195,7 +2195,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       document.getElementById('oagen-error-box-1').classList.add('hidden');
     }
 
-    // 💡 직접 추가 지시사항 체크박스 토글 시 입력창 열기/닫기
+    // 직접 추가 지시사항 체크박스 토글 시 입력창 열기/닫기
     window.toggleOAGenCustomNotes = function(checkbox) {
       const wrap = document.getElementById('oagen-custom-notes-wrap');
       const textarea = document.getElementById('oagen-user-notes');
@@ -2209,7 +2209,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       }
     };
 
-    // 최초명세서 파일 통째 업로드 + 도면 유지 + 청구항 추출 가능 여부 자동 판별
+    // 1. 최초명세서 파일 통째 업로드 + 도면 유지 + 청구항 추출 가능 여부 자동 판별
     window.removeOAGenSpecFile = function(event) {
       event.stopPropagation();
       oaGenState.specFile = null;
@@ -2222,7 +2222,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
     };
 
     async function handleOAGenSpecUpload(e, droppedFile = null) {
-      const file = droppedFile || (e.target.files && e.target.files[0]);
+      const file = droppedFile || (e && e.target && e.target.files && e.target.files[0]);
       if (!file) return;
       const ext = file.name.split('.').pop().toLowerCase();
       if (!['pdf', 'doc', 'docx', 'hlz'].includes(ext)) {
@@ -2320,7 +2320,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       if (e && e.target) e.target.value = '';
     }
 
-    // 최초명세서 파일에서 청구항 자동 추출
+    // 최초명세서 파일에서 청구항 자동 추출 (정규식 정상 복구됨)
     function extractClaimsFromOAGenSpec() {
       const pendingArea = document.getElementById('oagen-pending-claims');
 
@@ -2357,7 +2357,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       }
     }
 
-    // 거절이유 통지서 단일 파일 업로드 & 취소
+    // 2. 거절이유 통지서 단일 파일 업로드 & 취소
     window.removeOAGenFile = function(event) {
       event.stopPropagation();
       oaGenState.officeActionFile = null;
@@ -2366,7 +2366,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
     };
 
     async function handleOAGenFileUpload(e, droppedFile = null) {
-      const file = droppedFile || (e.target.files && e.target.files[0]);
+      const file = droppedFile || (e && e.target && e.target.files && e.target.files[0]);
       if (!file) return;
       const ext = file.name.toLowerCase();
       if (!(ext.endsWith('.pdf') || ext.endsWith('.doc') || ext.endsWith('.docx'))) {
@@ -2394,7 +2394,47 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       if (e && e.target) e.target.value = '';
     }
 
-    // 💡 [신규] 현지대리인 코멘트 파일 업로드 & 취소
+    // 3. 인용문헌(D1, D2...) 다중 파일 업로드 & 삭제 (복구됨!)
+    window.removeOAGenPriorFile = function(index) {
+      oaGenState.priorArtFiles.splice(index, 1);
+      renderOAGenPriorList();
+    };
+
+    function renderOAGenPriorList() {
+      const listEl = document.getElementById('oagen-prior-list');
+      if (!listEl) return;
+      listEl.innerHTML = oaGenState.priorArtFiles.map((f, i) => `
+        <li class="flex justify-between items-center p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs shadow-sm animate-fadeIn">
+          <span class="truncate w-[85%] font-bold text-slate-700">📄 [인용문헌 ${i + 1}] ${f.name}</span>
+          <button type="button" onclick="removeOAGenPriorFile(${i})" class="text-rose-400 hover:text-rose-600 font-black px-2">✕</button>
+        </li>
+      `).join('');
+    }
+
+    function handleOAGenPriorSelect(e, droppedFiles = null) {
+      const files = droppedFiles || (e && e.target && e.target.files ? Array.from(e.target.files) : []);
+      if (!files || files.length === 0) return;
+
+      const validFiles = files.filter(f => {
+        const ext = f.name.toLowerCase();
+        return ext.endsWith('.pdf') || ext.endsWith('.doc') || ext.endsWith('.docx');
+      });
+
+      if (validFiles.length > 0) {
+        oaGenState.priorArtFiles = [...oaGenState.priorArtFiles, ...validFiles];
+        renderOAGenPriorList();
+        const dropText = document.getElementById('oagen-prior-drop-text');
+        if (dropText) {
+          dropText.innerHTML = `<span class="text-indigo-600 font-black">✅ ${validFiles.length}개의 인용문헌 추가됨!</span>`;
+          setTimeout(() => { dropText.innerText = "인용문헌(D1, D2...) PDF/Word 선택 또는 드래그"; }, 1500);
+        }
+      } else {
+        alert('지원하지 않는 파일 형식입니다. (PDF 또는 Word 파일만 가능)');
+      }
+      if (e && e.target) e.target.value = '';
+    }
+
+    // 4. 현지대리인 코멘트 파일 업로드 & 취소
     window.removeOAGenAgentFile = function(event) {
       event.stopPropagation();
       oaGenState.agentCommentFile = null;
@@ -2403,7 +2443,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
     };
 
     async function handleOAGenAgentUpload(e, droppedFile = null) {
-      const file = droppedFile || (e.target.files && e.target.files[0]);
+      const file = droppedFile || (e && e.target && e.target.files && e.target.files[0]);
       if (!file) return;
       const ext = file.name.toLowerCase();
       if (!(ext.endsWith('.pdf') || ext.endsWith('.doc') || ext.endsWith('.docx'))) {
@@ -2417,7 +2457,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
 
       try {
         if (ext.endsWith('.docx')) {
-          // Word(.docx) 코멘트 파일은 텍스트도 함께 추출하고 바이너리도 보관
           const arrayBuffer = await file.arrayBuffer();
           const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
           const base64Data = await fileToBase64(file);
@@ -2450,7 +2489,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       if (e && e.target) e.target.value = '';
     }
 
-    // 대응안 워드 양식(.docx) 업로드 & 취소
+    // 5. 대응안 워드 양식(.docx) 업로드 & 취소 (표/볼드체 HTML 보존 방식 복구됨!)
     window.removeOAGenTemplate = function(event) {
       event.stopPropagation();
       oaGenState.templateFile = null;
@@ -2460,7 +2499,122 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       document.getElementById('oagen-template-name').innerText = '사용하실 대응안 Word 양식(.docx) 선택 또는 드래그';
     };
 
-    // 💡 [수정 2] AI 대응안 생성 실행 (표/볼드체 실시간 렌더링 지원)
+    async function handleOAGenTemplateUpload(e, droppedFile = null) {
+      const file = droppedFile || (e && e.target && e.target.files && e.target.files[0]);
+      if (!file) return;
+      const ext = file.name.toLowerCase();
+      if (!ext.endsWith('.docx')) {
+        alert('워드 양식은 .docx 형식의 파일만 지원합니다.');
+        if (e && e.target) e.target.value = '';
+        return;
+      }
+
+      const nameEl = document.getElementById('oagen-template-name');
+      nameEl.innerHTML = `<span class="text-indigo-500 font-bold">⏳ ${file.name} (표/볼드체 등 양식 서식 추출 중...)</span>`;
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const htmlResult = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
+        const cleanTemplateHtml = htmlResult.value.replace(/<img[^>]*>/gi, "");
+
+        oaGenState.templateFile = file;
+        oaGenState.templateArrayBuffer = arrayBuffer;
+        oaGenState.templateText = cleanTemplateHtml.trim();
+
+        nameEl.innerHTML = `
+          <div class="flex items-center justify-center space-x-2">
+            <span class="text-emerald-700 font-black">✅ [표/서식 양식 적용됨] ${file.name}</span>
+            <button type="button" onclick="removeOAGenTemplate(event)" class="text-rose-400 hover:text-rose-600 font-black text-base px-1.5" title="양식 취소">✕</button>
+          </div>
+        `;
+      } catch (err) {
+        nameEl.innerHTML = `<span class="text-rose-600 font-bold">❌ 양식 읽기 실패</span>`;
+        alert("워드 양식 파일 처리 중 오류가 발생했습니다.\n" + err.message);
+      }
+      if (e && e.target) e.target.value = '';
+    }
+
+    // 6. 모든 드롭존 드래그앤드롭 이벤트 바인딩 (복구됨!)
+    function setupOAGenDragAndDrop() {
+      const specZone = document.getElementById('dropzone-oagen-spec');
+      if (specZone) {
+        ['dragenter', 'dragover'].forEach(ev => specZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); specZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
+        ['dragleave', 'drop'].forEach(ev => specZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); specZone.classList.remove('bg-indigo-50', 'border-indigo-400'); }));
+        specZone.addEventListener('drop', e => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleOAGenSpecUpload(null, e.dataTransfer.files[0]);
+          }
+        });
+      }
+
+      const oaZone = document.getElementById('dropzone-oagen-oa');
+      if (oaZone) {
+        ['dragenter', 'dragover'].forEach(ev => oaZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); oaZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
+        ['dragleave', 'drop'].forEach(ev => oaZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); oaZone.classList.remove('bg-indigo-50', 'border-indigo-400'); }));
+        oaZone.addEventListener('drop', e => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleOAGenFileUpload(null, e.dataTransfer.files[0]);
+          }
+        });
+      }
+
+      const priorZone = document.getElementById('dropzone-oagen-prior');
+      if (priorZone) {
+        ['dragenter', 'dragover'].forEach(ev => priorZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); priorZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
+        ['dragleave', 'drop'].forEach(ev => priorZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); priorZone.classList.remove('bg-indigo-50', 'border-indigo-400'); }));
+        priorZone.addEventListener('drop', e => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleOAGenPriorSelect(null, Array.from(e.dataTransfer.files));
+          }
+        });
+      }
+
+      const agentZone = document.getElementById('dropzone-oagen-agent');
+      if (agentZone) {
+        ['dragenter', 'dragover'].forEach(ev => agentZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); agentZone.classList.add('bg-indigo-50', 'border-indigo-400'); }));
+        ['dragleave', 'drop'].forEach(ev => agentZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); agentZone.classList.remove('bg-indigo-50', 'border-indigo-400'); }));
+        agentZone.addEventListener('drop', e => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleOAGenAgentUpload(null, e.dataTransfer.files[0]);
+          }
+        });
+      }
+
+      const tplZone = document.getElementById('dropzone-oagen-template');
+      if (tplZone) {
+        ['dragenter', 'dragover'].forEach(ev => tplZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); tplZone.classList.add('bg-indigo-100/60', 'border-indigo-500'); }));
+        ['dragleave', 'drop'].forEach(ev => tplZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); tplZone.classList.remove('bg-indigo-100/60', 'border-indigo-500'); }));
+        tplZone.addEventListener('drop', e => {
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleOAGenTemplateUpload(null, e.dataTransfer.files[0]);
+          }
+        });
+      }
+    }
+
+    function clearOAGenInputs() {
+      oaGenState.specFile = null;
+      oaGenState.specImages = [];
+      oaGenState.specExtractedText = "";
+      oaGenState.isSpecScannedPDF = false;
+      oaGenState.officeActionFile = null;
+      oaGenState.priorArtFiles = [];
+      oaGenState.agentCommentFile = null;
+      oaGenState.templateFile = null;
+      oaGenState.templateArrayBuffer = null;
+      oaGenState.templateText = "";
+      oaGenState.lastResultText = "";
+      document.getElementById('oagen-pending-claims').value = '';
+      document.getElementById('oagen-user-notes').value = '';
+      document.getElementById('oagen-spec-file-name').innerText = 'PDF, Word(.docx), HLZ 파일 선택 또는 드래그';
+      document.getElementById('oagen-spec-subtext').innerText = '도면과 명세서 전체가 AI에게 전달되며, 청구항 자동 추출을 지원합니다.';
+      document.getElementById('oagen-file-name').innerText = 'PDF, Word 파일 선택 또는 여기로 드래그';
+      document.getElementById('oagen-agent-name').innerText = '현지대리인 코멘트 PDF/Word 선택 또는 드래그';
+      document.getElementById('oagen-template-name').innerText = '사용하실 대응안 Word 양식(.docx) 선택 또는 드래그';
+      renderOAGenPriorList();
+    }
+
+    // 7. AI 대응안 생성 실행 (표/볼드체 실시간 렌더링 지원)
     async function runOAGen() {
       const btn = document.getElementById('oagen-btn-generate');
       const spinner = document.getElementById('oagen-loading-spinner');
@@ -2506,7 +2660,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
             pendingClaims: document.getElementById('oagen-pending-claims').value,
             priorArtFiles: await processPriorFiles(oaGenState.priorArtFiles),
             agentCommentFile: oaGenState.agentCommentFile,
-            userTemplate: oaGenState.templateText, // 🔥 HTML 표/볼드체가 살아있는 양식 전달
+            userTemplate: oaGenState.templateText,
             strategies: selectedStrategies,
             userNotes: isCustomChecked ? userNotesVal : ""
           }
@@ -2516,7 +2670,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         const container = document.getElementById('oagen-result-content');
         container.innerHTML = `
           <style>
-            /* 결과 화면에서 워드 양식의 표(Table)와 볼드체가 깔끔하게 보이도록 전용 스타일 적용 */
             #oagen-stream-output table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px; background: #fff; }
             #oagen-stream-output th, #oagen-stream-output td { border: 1px solid #94a3b8; padding: 10px 12px; vertical-align: top; line-height: 1.6; }
             #oagen-stream-output th { background-color: #f1f5f9; font-weight: 800; text-align: center; color: #1e293b; }
@@ -2538,15 +2691,12 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         let isFirst = true;
         let accText = "";
 
-        // 🔥 HTML 태그(<table>, <tr>, <td>, <strong> 등)와 마크다운을 모두 살려주는 포매터
         const formatRichOutput = (text) => {
           let cleaned = text.replace(/```html\n?/gi, '').replace(/```\n?/g, '');
-          // HTML 표/태그가 포함된 경우 마크다운 볼드(**)만 <strong>으로 보조 변환
           cleaned = cleaned
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/^### (.*$)/gm, '<h3>$1</h3>')
             .replace(/^## (.*$)/gm, '<h2>$1</h2>');
-          // 만약 줄바꿈이 일반 \n으로 되어 있는 구간은 문단 밖에서만 <br> 처리
           if (!cleaned.includes('<p>') && !cleaned.includes('<table')) {
             cleaned = cleaned.replace(/\n/g, '<br>');
           }
@@ -2581,17 +2731,14 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       }
     }
 
-    // 💡 [수정 3] 표(Table) 테두리, 셀 병합, 볼드체 서식을 100% 살려서 Word 파일로 다운로드!
+    // 8. 표(Table) 테두리, 셀 병합, 볼드체 서식을 100% 살려서 Word 파일로 다운로드
     window.downloadOAGenWord = function() {
       if (!oaGenState.lastResultText) return alert('다운로드할 대응안 내용이 없습니다.');
 
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const fileName = `OA_대응안_${oaGenState.country || 'IP5'}_${dateStr}.doc`;
 
-      // 화면에 렌더링된 HTML(표, 볼드체, 문단 포함)을 그대로 가져옴
       let contentHtml = document.getElementById('oagen-stream-output')?.innerHTML || oaGenState.lastResultText;
-      
-      // 맨 앞의 안내 문구("✨ KR 기준 맞춤형 OA 대응안...")는 실제 워드 문서 본문에서는 깔끔하게 제거
       contentHtml = contentHtml.replace(/<p>✨.*?도출을 시작합니다\.\.\.<\/p>/gi, '')
                                .replace(/✨.*?도출을 시작합니다\.\.\.(<br>\s*)*/gi, '');
 
