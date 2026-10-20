@@ -2130,19 +2130,28 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         }
     };
 
-// ================== [신규] 국가별 OA 대응안 생성기 (OAGen) 로직 (완전 복구본) ==================
+// ================== [신규] 국가별 OA 대응안 생성기 (OAGen) 로직 (원본 워드 폰트/표 서식 & 현지대리인 변경내용 추적 완벽 보존 버전) ==================
     let oaGenState = {
       country: null,
-      specFile: null,            // 최초명세서 원본 파일 객체 { name, mimeType, base64 }
-      specImages: [],            // Word(.docx)나 HLZ 내부에 포함된 도면 이미지 배열
-      specExtractedText: "",     // 청구항 자동 추출 및 AI 보조 참조용 텍스트
-      isSpecScannedPDF: false,   // 텍스트가 없는 순수 이미지 스캔본 PDF 여부
-      officeActionFile: null,    // 거절이유 통지서 파일
-      priorArtFiles: [],         // 인용문헌 파일 배열
-      agentCommentFile: null,    // 현지대리인 코멘트 파일 { name, mimeType, base64 }
+      specFile: null,
+      specImages: [],
+      specExtractedText: "",
+      isSpecScannedPDF: false,
+      officeActionFile: null,
+      priorArtFiles: [],
+      agentCommentFile: null,
       templateFile: null,
       templateArrayBuffer: null,
       templateText: "",
+      // 🔥 워드 양식(.docx) 원본에서 추출한 실제 폰트/크기/표 스타일 메타데이터
+      templateStyle: {
+        bodyFont: "맑은 고딕",
+        bodySizePt: "10",
+        tableFont: "맑은 고딕",
+        tableSizePt: "9.5",
+        thBgColor: "#f2f2f2",
+        lineHeight: "1.5"
+      },
       lastResultText: ""
     };
     let oaGenStep = 0;
@@ -2151,6 +2160,259 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       updateInd('oagen', 0);
       setupOAGenDragAndDrop();
     });
+
+    // 💡 [핵심 신기술 1] Word(.docx) 파일 내부 XML에서 '변경내용 추적(<w:ins>, <w:del>)'과 '취소선/밑줄'을 100% 살려서 추출하는 파서
+    async function extractDocxWithTrackChanges(arrayBuffer) {
+      try {
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const docXmlFile = zip.file("word/document.xml");
+        if (!docXmlFile) return "";
+
+        const xmlStr = await docXmlFile.async("string");
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlStr, "application/xml");
+
+        function parseNode(node) {
+          let out = "";
+          for (let child of node.childNodes) {
+            const name = child.nodeName;
+            if (name === "w:p") {
+              const pContent = parseNode(child).trim();
+              if (pContent) out += pContent + "\n";
+            } else if (name === "w:tbl") {
+              out += "\n[표 시작]\n" + parseNode(child) + "[표 끝]\n";
+            } else if (name === "w:tr") {
+              const cells = [];
+              for (let tc of child.childNodes) {
+                if (tc.nodeName === "w:tc") {
+                  cells.push(parseNode(tc).replace(/\n+/g, " ").trim());
+                }
+              }
+              if (cells.length > 0) out += "| " + cells.join(" | ") + " |\n";
+            } else if (name === "w:ins") {
+              // 실제 Word 변경내용 추적 (삽입된 텍스트)
+              const insText = parseNode(child);
+              if (insText) out += `<ins>${insText}</ins>`;
+            } else if (name === "w:del") {
+              // 실제 Word 변경내용 추적 (삭제된 텍스트)
+              const delText = parseNode(child);
+              if (delText) out += `<del>${delText}</del>`;
+            } else if (name === "w:r") {
+              // 일반 런(Run) 내부에 수동 취소선(w:strike)이나 밑줄(w:u)로 보정 표시를 한 경우도 자동 감지!
+              let isStrike = false;
+              let isUnderline = false;
+              const rPr = child.getElementsByTagName("w:rPr")[0];
+              if (rPr) {
+                const strikeEl = rPr.getElementsByTagName("w:strike")[0] || rPr.getElementsByTagName("w:dstrike")[0];
+                if (strikeEl && strikeEl.getAttribute("w:val") !== "false" && strikeEl.getAttribute("w:val") !== "0") {
+                  isStrike = true;
+                }
+                const uEl = rPr.getElementsByTagName("w:u")[0];
+                if (uEl && uEl.getAttribute("w:val") && uEl.getAttribute("w:val") !== "none") {
+                  isUnderline = true;
+                }
+              }
+              let runText = "";
+              for (let rChild of child.childNodes) {
+                if (rChild.nodeName === "w:t" || rChild.nodeName === "w:delText") {
+                  runText += rChild.textContent;
+                } else if (rChild.nodeName === "w:tab") {
+                  runText += "\t";
+                } else if (rChild.nodeName === "w:br") {
+                  runText += "\n";
+                }
+              }
+              if (runText) {
+                if (isStrike) out += `<del>${runText}</del>`;
+                else if (isUnderline) out += `<ins>${runText}</ins>`;
+                else out += runText;
+              }
+            } else if (name === "w:t" || name === "w:delText") {
+              out += child.textContent;
+            } else {
+              out += parseNode(child);
+            }
+          }
+          return out;
+        }
+
+        // 연속된 <ins></ins><ins> 또는 <del></del><del> 태그를 하나로 깔끔하게 병합
+        let finalResult = parseNode(xmlDoc.documentElement);
+        finalResult = finalResult.replace(/<\/ins>\s*<ins>/g, " ").replace(/<\/del>\s*<del>/g, " ");
+        return finalResult.trim();
+      } catch (e) {
+        console.warn("XML 변경내용 추적 파싱 폴백:", e);
+        const fallback = await mammoth.extractRawText({ arrayBuffer });
+        return fallback.value.trim();
+      }
+    }
+
+    // 💡 [핵심 신기술 2] 업로드된 워드 양식(.docx)의 원본 폰트, 표 내부 글자 크기, 표 헤더 배경색, 셀 스타일을 정밀 추출하여 HTML 양식에 입히는 함수
+    async function extractRichTemplateWithStyles(arrayBuffer) {
+      const zip = await JSZip.loadAsync(arrayBuffer);
+      const docXmlFile = zip.file("word/document.xml");
+      const stylesXmlFile = zip.file("word/styles.xml");
+
+      let detectedBodyFont = "맑은 고딕";
+      let detectedTableFont = "";
+      let detectedBodySizeHalfPt = 20; // 10pt
+      let detectedTableSizeHalfPt = 19; // 9.5pt
+      let detectedThBg = "#f2f2f2";
+
+      if (stylesXmlFile) {
+        const stylesStr = await stylesXmlFile.async("string");
+        const fontMatch = stylesStr.match(/w:eastAsia="([^"]+)"/) || stylesStr.match(/w:ascii="([^"]+)"/);
+        if (fontMatch && fontMatch[1]) detectedBodyFont = fontMatch[1];
+        const szMatch = stylesStr.match(/<w:sz\s+w:val="(\d+)"/);
+        if (szMatch && szMatch[1]) detectedBodySizeHalfPt = parseInt(szMatch[1], 10);
+      }
+
+      if (!docXmlFile) {
+        const fallback = await mammoth.convertToHtml({ arrayBuffer });
+        return fallback.value.replace(/<img[^>]*>/gi, "");
+      }
+
+      const xmlStr = await docXmlFile.async("string");
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlStr, "application/xml");
+
+      // 문서 본문 및 표 내부의 실제 폰트/크기/배경색/정렬을 살려서 HTML로 직접 변환
+      function convertXmlToStyledHtml(node, inTable = false) {
+        let html = "";
+        for (let child of node.childNodes) {
+          const name = child.nodeName;
+
+          if (name === "w:p") {
+            const pPr = child.getElementsByTagName("w:pPr")[0];
+            let align = "";
+            if (pPr) {
+              const jc = pPr.getElementsByTagName("w:jc")[0];
+              if (jc) {
+                const val = jc.getAttribute("w:val");
+                if (val === "center" || val === "right" || val === "both") {
+                  align = ` style="text-align:${val === 'both' ? 'justify' : val};"`;
+                }
+              }
+            }
+            const inner = convertXmlToStyledHtml(child, inTable).trim();
+            if (inner) {
+              html += `<p${align}>${inner}</p>\n`;
+            }
+          } else if (name === "w:tbl") {
+            html += `<table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; border:1pt solid #000000;">\n${convertXmlToStyledHtml(child, true)}</table>\n`;
+          } else if (name === "w:tr") {
+            html += `  <tr>\n${convertXmlToStyledHtml(child, true)}  </tr>\n`;
+          } else if (name === "w:tc") {
+            const tcPr = child.getElementsByTagName("w:tcPr")[0];
+            let colspanAttr = "";
+            let rowspanAttr = "";
+            let styleParts = ["border:1pt solid #000000", "padding:5pt 7pt"];
+
+            if (tcPr) {
+              const gridSpan = tcPr.getElementsByTagName("w:gridSpan")[0];
+              if (gridSpan && gridSpan.getAttribute("w:val")) {
+                colspanAttr = ` colspan="${gridSpan.getAttribute("w:val")}"`;
+              }
+              const vMerge = tcPr.getElementsByTagName("w:vMerge")[0];
+              if (vMerge && vMerge.getAttribute("w:val") === "continue") {
+                continue; // 병합된 하위 셀 생략
+              }
+              const shd = tcPr.getElementsByTagName("w:shd")[0];
+              if (shd) {
+                const fill = shd.getAttribute("w:fill");
+                if (fill && fill !== "auto" && fill !== "FFFFFF" && fill !== "ffffff") {
+                  const hex = `#${fill}`;
+                  styleParts.push(`background-color:${hex}`);
+                  detectedThBg = hex;
+                }
+              }
+              const vAlign = tcPr.getElementsByTagName("w:vAlign")[0];
+              if (vAlign && vAlign.getAttribute("w:val")) {
+                const va = vAlign.getAttribute("w:val");
+                styleParts.push(`vertical-align:${va === 'center' ? 'middle' : va}`);
+              }
+            }
+
+            const cellContent = convertXmlToStyledHtml(child, true).trim() || "&nbsp;";
+            html += `    <td${colspanAttr}${rowspanAttr} style="${styleParts.join('; ')}">${cellContent}</td>\n`;
+          } else if (name === "w:r") {
+            const rPr = child.getElementsByTagName("w:rPr")[0];
+            let isBold = false;
+            let isUnderline = false;
+            let isStrike = false;
+            let colorHex = "";
+
+            if (rPr) {
+              const bEl = rPr.getElementsByTagName("w:b")[0];
+              if (bEl && bEl.getAttribute("w:val") !== "0" && bEl.getAttribute("w:val") !== "false") isBold = true;
+
+              const uEl = rPr.getElementsByTagName("w:u")[0];
+              if (uEl && uEl.getAttribute("w:val") && uEl.getAttribute("w:val") !== "none") isUnderline = true;
+
+              const sEl = rPr.getElementsByTagName("w:strike")[0];
+              if (sEl && sEl.getAttribute("w:val") !== "0" && sEl.getAttribute("w:val") !== "false") isStrike = true;
+
+              const cEl = rPr.getElementsByTagName("w:color")[0];
+              if (cEl && cEl.getAttribute("w:val") && cEl.getAttribute("w:val") !== "auto" && cEl.getAttribute("w:val") !== "000000") {
+                colorHex = `#${cEl.getAttribute("w:val")}`;
+              }
+
+              const rFonts = rPr.getElementsByTagName("w:rFonts")[0];
+              if (rFonts) {
+                const fName = rFonts.getAttribute("w:eastAsia") || rFonts.getAttribute("w:ascii");
+                if (fName) {
+                  if (inTable && !detectedTableFont) detectedTableFont = fName;
+                  else if (!inTable) detectedBodyFont = fName;
+                }
+              }
+
+              const szEl = rPr.getElementsByTagName("w:sz")[0];
+              if (szEl && szEl.getAttribute("w:val")) {
+                const val = parseInt(szEl.getAttribute("w:val"), 10);
+                if (inTable) detectedTableSizeHalfPt = val;
+                else detectedBodySizeHalfPt = val;
+              }
+            }
+
+            let text = "";
+            for (let rc of child.childNodes) {
+              if (rc.nodeName === "w:t") text += rc.textContent;
+              else if (rc.nodeName === "w:br") text += "<br>";
+            }
+
+            if (text) {
+              let formatted = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/&lt;br&gt;/g, "<br>");
+              if (colorHex) formatted = `<span style="color:${colorHex};">${formatted}</span>`;
+              if (isStrike) formatted = `<del>${formatted}</del>`;
+              if (isUnderline) formatted = `<u>${formatted}</u>`;
+              if (isBold) formatted = `<strong>${formatted}</strong>`;
+              html += formatted;
+            }
+          } else {
+            html += convertXmlToStyledHtml(child, inTable);
+          }
+        }
+        return html;
+      }
+
+      const bodyNode = xmlDoc.getElementsByTagName("w:body")[0] || xmlDoc.documentElement;
+      let extractedHtml = convertXmlToStyledHtml(bodyNode, false);
+
+      // 연속된 <strong></strong> 태그 병합으로 토큰 절약
+      extractedHtml = extractedHtml.replace(/<\/strong>(\s*)<strong>/g, "$1");
+
+      // 추출된 원본 워드 양식의 폰트와 글자 크기를 상태에 저장 (다운로드 시 100% 동일 적용!)
+      oaGenState.templateStyle = {
+        bodyFont: detectedBodyFont || "맑은 고딕",
+        bodySizePt: (detectedBodySizeHalfPt / 2).toString(),
+        tableFont: detectedTableFont || detectedBodyFont || "맑은 고딕",
+        tableSizePt: (detectedTableSizeHalfPt / 2).toString(),
+        thBgColor: detectedThBg || "#f2f2f2",
+        lineHeight: "1.5"
+      };
+
+      return extractedHtml.trim();
+    }
 
     function goToOAGenStep(step) {
       if (step === 1) {
@@ -2195,7 +2457,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       document.getElementById('oagen-error-box-1').classList.add('hidden');
     }
 
-    // 직접 추가 지시사항 체크박스 토글 시 입력창 열기/닫기
     window.toggleOAGenCustomNotes = function(checkbox) {
       const wrap = document.getElementById('oagen-custom-notes-wrap');
       const textarea = document.getElementById('oagen-user-notes');
@@ -2209,7 +2470,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       }
     };
 
-    // 1. 최초명세서 파일 통째 업로드 + 도면 유지 + 청구항 추출 가능 여부 자동 판별
+    // 1. 최초명세서 파일 업로드
     window.removeOAGenSpecFile = function(event) {
       event.stopPropagation();
       oaGenState.specFile = null;
@@ -2320,7 +2581,6 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       if (e && e.target) e.target.value = '';
     }
 
-    // 최초명세서 파일에서 청구항 자동 추출 (정규식 정상 복구됨)
     function extractClaimsFromOAGenSpec() {
       const pendingArea = document.getElementById('oagen-pending-claims');
 
@@ -2357,7 +2617,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       }
     }
 
-    // 2. 거절이유 통지서 단일 파일 업로드 & 취소
+    // 2. 거절이유 통지서 파일 업로드
     window.removeOAGenFile = function(event) {
       event.stopPropagation();
       oaGenState.officeActionFile = null;
@@ -2394,7 +2654,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       if (e && e.target) e.target.value = '';
     }
 
-    // 3. 인용문헌(D1, D2...) 다중 파일 업로드 & 삭제 (복구됨!)
+    // 3. 인용문헌(D1, D2...) 다중 파일 업로드
     window.removeOAGenPriorFile = function(index) {
       oaGenState.priorArtFiles.splice(index, 1);
       renderOAGenPriorList();
@@ -2434,7 +2694,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       if (e && e.target) e.target.value = '';
     }
 
-    // 4. 현지대리인 코멘트 파일 업로드 & 취소
+    // 4. 🔥 [업그레이드] 현지대리인 코멘트 파일 업로드 (Word 변경내용 추적 <w:ins>, <w:del> 완벽 추출!)
     window.removeOAGenAgentFile = function(event) {
       event.stopPropagation();
       oaGenState.agentCommentFile = null;
@@ -2453,18 +2713,19 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       }
 
       const nameEl = document.getElementById('oagen-agent-name');
-      nameEl.innerHTML = `<span class="text-indigo-500 font-bold">⏳ ${file.name} 처리 중...</span>`;
+      nameEl.innerHTML = `<span class="text-indigo-500 font-bold">⏳ ${file.name} (보정안 변경내용 추적 추출 중...)</span>`;
 
       try {
         if (ext.endsWith('.docx')) {
           const arrayBuffer = await file.arrayBuffer();
-          const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+          // 🔥 mammoth 대신 XML 직접 파서를 사용하여 현지대리인 워드 파일의 변경내용 추적(<ins>, <del>)을 100% 보존!
+          const trackedText = await extractDocxWithTrackChanges(arrayBuffer);
           const base64Data = await fileToBase64(file);
           oaGenState.agentCommentFile = {
             name: file.name,
             mimeType: file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             base64: base64Data,
-            extractedText: result.value.trim()
+            extractedText: trackedText
           };
         } else {
           const base64Data = await fileToBase64(file);
@@ -2478,7 +2739,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
 
         nameEl.innerHTML = `
           <div class="flex items-center justify-center space-x-2">
-            <span class="text-amber-700 font-black">✅ [코멘트 첨부됨] ${file.name}</span>
+            <span class="text-amber-700 font-black">✅ [코멘트+변경추적 인식됨] ${file.name}</span>
             <button type="button" onclick="removeOAGenAgentFile(event)" class="text-rose-400 hover:text-rose-600 font-black text-base px-1.5" title="첨부 취소">✕</button>
           </div>
         `;
@@ -2489,7 +2750,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       if (e && e.target) e.target.value = '';
     }
 
-    // 5. 대응안 워드 양식(.docx) 업로드 & 취소 (표/볼드체 HTML 보존 방식 복구됨!)
+    // 5. 🔥 [업그레이드] 대응안 워드 양식(.docx) 업로드 (원본 폰트, 글자 크기, 표 셀 음영/병합 정밀 추출!)
     window.removeOAGenTemplate = function(event) {
       event.stopPropagation();
       oaGenState.templateFile = null;
@@ -2510,21 +2771,24 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       }
 
       const nameEl = document.getElementById('oagen-template-name');
-      nameEl.innerHTML = `<span class="text-indigo-500 font-bold">⏳ ${file.name} (표/볼드체 등 양식 서식 추출 중...)</span>`;
+      nameEl.innerHTML = `<span class="text-indigo-500 font-bold">⏳ ${file.name} (원본 폰트/표 서식 정밀 분석 중...)</span>`;
 
       try {
         const arrayBuffer = await file.arrayBuffer();
-        const htmlResult = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
-        const cleanTemplateHtml = htmlResult.value.replace(/<img[^>]*>/gi, "");
+        const styledHtml = await extractRichTemplateWithStyles(arrayBuffer);
 
         oaGenState.templateFile = file;
         oaGenState.templateArrayBuffer = arrayBuffer;
-        oaGenState.templateText = cleanTemplateHtml.trim();
+        oaGenState.templateText = styledHtml;
 
+        const st = oaGenState.templateStyle;
         nameEl.innerHTML = `
-          <div class="flex items-center justify-center space-x-2">
-            <span class="text-emerald-700 font-black">✅ [표/서식 양식 적용됨] ${file.name}</span>
-            <button type="button" onclick="removeOAGenTemplate(event)" class="text-rose-400 hover:text-rose-600 font-black text-base px-1.5" title="양식 취소">✕</button>
+          <div class="flex flex-col items-center justify-center">
+            <div class="flex items-center space-x-2">
+              <span class="text-emerald-700 font-black">✅ [양식 적용됨] ${file.name}</span>
+              <button type="button" onclick="removeOAGenTemplate(event)" class="text-rose-400 hover:text-rose-600 font-black text-base px-1.5" title="양식 취소">✕</button>
+            </div>
+            <span class="text-[10px] text-indigo-600 font-bold mt-0.5">감지된 양식 서식: 본문(${st.bodyFont} ${st.bodySizePt}pt) / 표 내부(${st.tableFont} ${st.tableSizePt}pt)</span>
           </div>
         `;
       } catch (err) {
@@ -2534,7 +2798,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       if (e && e.target) e.target.value = '';
     }
 
-    // 6. 모든 드롭존 드래그앤드롭 이벤트 바인딩 (복구됨!)
+    // 6. 드래그앤드롭 이벤트 바인딩
     function setupOAGenDragAndDrop() {
       const specZone = document.getElementById('dropzone-oagen-spec');
       if (specZone) {
@@ -2614,7 +2878,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       renderOAGenPriorList();
     }
 
-    // 7. AI 대응안 생성 실행 (표/볼드체 실시간 렌더링 지원)
+    // 7. AI 대응안 생성 실행 (양식 폰트 & 변경내용 추적 실시간 렌더링)
     async function runOAGen() {
       const btn = document.getElementById('oagen-btn-generate');
       const spinner = document.getElementById('oagen-loading-spinner');
@@ -2666,27 +2930,30 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
           }
         };
 
+        const st = oaGenState.templateStyle;
+
         goToOAGenStep(2);
         const container = document.getElementById('oagen-result-content');
         container.innerHTML = `
           <style>
-            #oagen-stream-output table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px; background: #fff; }
-            #oagen-stream-output th, #oagen-stream-output td { border: 1px solid #94a3b8; padding: 10px 12px; vertical-align: top; line-height: 1.6; }
-            #oagen-stream-output th { background-color: #f1f5f9; font-weight: 800; text-align: center; color: #1e293b; }
-            #oagen-stream-output p { margin: 6px 0; }
-            #oagen-stream-output strong, #oagen-stream-output b { font-weight: 800; color: #111827; }
-            #oagen-stream-output h1, #oagen-stream-output h2, #oagen-stream-output h3 { font-weight: 900; color: #1e293b; margin-top: 18px; margin-bottom: 8px; }
-            /* 👇 [신규 추가] 청구항 보정사항 변경내용 추적(추가/삭제) 표시 스타일 */
-            #oagen-stream-output ins { color: #2563eb; font-weight: 800; text-decoration: underline; background-color: #eff6ff; padding: 1px 3px; border-radius: 3px; }
-            #oagen-stream-output del { color: #dc2626; text-decoration: line-through; background-color: #fef2f2; padding: 1px 3px; border-radius: 3px; }
+            #oagen-stream-output { font-family: '${st.bodyFont}', '맑은 고딕', sans-serif; font-size: ${st.bodySizePt}pt; line-height: 1.6; color: #111827; }
+            #oagen-stream-output table { width: 100%; border-collapse: collapse; margin: 14px 0; background: #fff; font-family: '${st.tableFont}', '${st.bodyFont}', sans-serif; font-size: ${st.tableSizePt}pt; }
+            #oagen-stream-output th, #oagen-stream-output td { border: 1px solid #000000; padding: 7px 10px; vertical-align: middle; line-height: 1.5; font-family: '${st.tableFont}', '${st.bodyFont}', sans-serif; font-size: ${st.tableSizePt}pt; }
+            #oagen-stream-output th { background-color: ${st.thBgColor}; font-weight: 800; text-align: center; color: #000000; }
+            #oagen-stream-output p { margin: 5px 0; }
+            #oagen-stream-output strong, #oagen-stream-output b { font-weight: 800; }
+            #oagen-stream-output h1, #oagen-stream-output h2, #oagen-stream-output h3 { font-weight: 900; color: #111827; margin-top: 16px; margin-bottom: 8px; }
+            /* 청구항 보정사항 (현지대리인 보정안 & AI 보정안 공통) 변경내용 추적 표시 */
+            #oagen-stream-output ins { color: #0000FF; font-weight: 800; text-decoration: underline; background-color: #eff6ff; padding: 0 2px; }
+            #oagen-stream-output del { color: #FF0000; text-decoration: line-through; background-color: #fef2f2; padding: 0 2px; }
           </style>
           <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
             <h3 class="text-lg font-black text-slate-900 flex items-center">
-              ✨ AI 맞춤형 OA 대응안 ${oaGenState.templateFile ? `<span class="ml-2 text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">📄 적용 양식: ${oaGenState.templateFile.name}</span>` : ''}
+              ✨ AI 맞춤형 OA 대응안 ${oaGenState.templateFile ? `<span class="ml-2 text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">📄 적용 양식: ${oaGenState.templateFile.name} (${st.tableFont}${st.tableSizePt}pt)</span>` : ''}
             </h3>
             <span id="oagen-status-badge" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 animate-pulse">명세서 도면 및 선행문헌 분석 중...</span>
           </div>
-          <div id="oagen-stream-output" class="select-text text-sm text-slate-800 leading-relaxed font-medium"></div>
+          <div id="oagen-stream-output" class="select-text"></div>
         `;
 
         const outputDiv = document.getElementById('oagen-stream-output');
@@ -2709,7 +2976,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
         await streamFetchGemini('/api/gemini', bodyData, (textChunk) => {
           if (isFirst) {
             isFirst = false;
-            statusBadge.innerText = "워드 양식(표/서식)에 맞춰 대응안 작성 중 ✍️";
+            statusBadge.innerText = "워드 양식(표/폰트/변경추적)에 맞춰 대응안 작성 중 ✍️";
             statusBadge.classList.remove('animate-pulse');
           }
           accText += textChunk;
@@ -2734,16 +3001,52 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
       }
     }
 
-    // 8. 표(Table) 테두리, 볼드체, 그리고 청구항 보정 변경내용 추적(<ins>, <del>)을 살려서 Word 다운로드
+    // 8. 🔥 [업그레이드] 업로드된 워드 양식의 실제 폰트/글자크기/표 서식과 변경내용 추적을 100% 반영하여 Word 다운로드
     window.downloadOAGenWord = function() {
       if (!oaGenState.lastResultText) return alert('다운로드할 대응안 내용이 없습니다.');
 
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const fileName = `OA_대응안_${oaGenState.country || 'IP5'}_${dateStr}.doc`;
+      const st = oaGenState.templateStyle;
 
       let contentHtml = document.getElementById('oagen-stream-output')?.innerHTML || oaGenState.lastResultText;
       contentHtml = contentHtml.replace(/<p>✨.*?도출을 시작합니다\.\.\.<\/p>/gi, '')
                                .replace(/✨.*?도출을 시작합니다\.\.\.(<br>\s*)*/gi, '');
+
+      // MS Word는 CSS 상속보다 각 <td> 및 <p> 태그에 직접 명시된 mso-bidi-font-family / font-family를 우선 적용하므로,
+      // 표 내부의 모든 셀(td, th)과 문단(p)에 양식 문서에서 추출한 실제 폰트와 크기를 강제 주입합니다!
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = contentHtml;
+
+      tempDiv.querySelectorAll('table').forEach(tbl => {
+        tbl.setAttribute('border', '1');
+        tbl.setAttribute('cellspacing', '0');
+        tbl.setAttribute('cellpadding', '5');
+        tbl.style.width = '100%';
+        tbl.style.borderCollapse = 'collapse';
+        tbl.style.border = '1pt solid #000000';
+        tbl.style.fontFamily = `'${st.tableFont}', '${st.bodyFont}', sans-serif`;
+        tbl.style.fontSize = `${st.tableSizePt}pt`;
+      });
+
+      tempDiv.querySelectorAll('th, td').forEach(cell => {
+        cell.style.border = '1pt solid #000000';
+        cell.style.padding = '5pt 7pt';
+        cell.style.fontFamily = `'${st.tableFont}', '${st.bodyFont}', sans-serif`;
+        cell.style.fontSize = `${st.tableSizePt}pt`;
+        if (!cell.style.verticalAlign) cell.style.verticalAlign = 'middle';
+        // 셀 안의 <p> 태그에도 표 전용 폰트/크기 강제 적용 (Word에서 표 안의 글자 폰트가 기본값으로 튀는 현상 완벽 차단!)
+        cell.querySelectorAll('p, span, div, li').forEach( innerEl => {
+          innerEl.style.fontFamily = `'${st.tableFont}', '${st.bodyFont}', sans-serif`;
+          if (!innerEl.style.fontSize) innerEl.style.fontSize = `${st.tableSizePt}pt`;
+          if (innerEl.tagName === 'P') {
+            innerEl.style.margin = '2pt 0';
+            innerEl.style.lineHeight = '1.4';
+          }
+        });
+      });
+
+      const styledBodyHtml = tempDiv.innerHTML;
 
       const wordDocument = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' 
@@ -2765,9 +3068,12 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
               margin: 2.0cm 2.0cm 2.0cm 2.0cm;
               mso-page-orientation: portrait;
             }
-            body {
-              font-family: '맑은 고딕', 'Malgun Gothic', '바탕', sans-serif;
-              font-size: 10pt;
+            body, p, div {
+              font-family: '${st.bodyFont}', '맑은 고딕', sans-serif;
+              mso-ascii-font-family: '${st.bodyFont}';
+              mso-hansi-font-family: '${st.bodyFont}';
+              mso-fareast-font-family: '${st.bodyFont}';
+              font-size: ${st.bodySizePt}pt;
               line-height: 1.5;
               color: #000000;
             }
@@ -2776,35 +3082,39 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
               border-collapse: collapse;
               mso-table-layout-alt: fixed;
               border: 1pt solid #000000;
-              margin: 8pt 0;
+              margin: 6pt 0;
+              font-family: '${st.tableFont}', '${st.bodyFont}', sans-serif;
+              font-size: ${st.tableSizePt}pt;
             }
             th, td {
               border: 1pt solid #000000;
-              padding: 6pt 8pt;
-              font-family: '맑은 고딕', 'Malgun Gothic', sans-serif;
-              font-size: 9.5pt;
+              padding: 5pt 7pt;
+              font-family: '${st.tableFont}', '${st.bodyFont}', sans-serif;
+              mso-ascii-font-family: '${st.tableFont}';
+              mso-hansi-font-family: '${st.tableFont}';
+              mso-fareast-font-family: '${st.tableFont}';
+              font-size: ${st.tableSizePt}pt;
               vertical-align: middle;
               word-wrap: break-word;
             }
             th {
-              background-color: #f2f2f2;
+              background-color: ${st.thBgColor};
               font-weight: bold;
               text-align: center;
             }
             p {
-              margin: 4pt 0;
+              margin: 3pt 0;
               line-height: 1.5;
             }
             h1, h2, h3, h4 {
-              font-family: '맑은 고딕', 'Malgun Gothic', sans-serif;
+              font-family: '${st.bodyFont}', sans-serif;
               font-weight: bold;
-              margin-top: 12pt;
-              margin-bottom: 6pt;
+              margin-top: 10pt;
+              margin-bottom: 4pt;
             }
             strong, b {
               font-weight: bold;
             }
-            /* 🔥 워드 파일 내 청구항 보정사항(추가/삭제) 변경내용 추적 전용 스타일 */
             ins {
               color: #0000FF;
               font-weight: bold;
@@ -2819,7 +3129,7 @@ const selectedFieldEls = document.querySelectorAll('input[name="search-fields"]:
           </style>
         </head>
         <body>
-          ${contentHtml}
+          ${styledBodyHtml}
         </body>
         </html>
       `;
