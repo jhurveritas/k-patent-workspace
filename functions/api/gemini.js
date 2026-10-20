@@ -519,7 +519,7 @@ ${cleanPendingClaims}
             geminiPayload = {
               systemInstruction: { parts: [{ text: systemInstruction }] },
               contents: [{ role: "user", parts: parts }],
-              generationConfig: { temperature: 0.15, maxOutputTokens: 8192 }
+              generationConfig: { temperature: 0.15, maxOutputTokens: 65536 }
             };
           }
           
